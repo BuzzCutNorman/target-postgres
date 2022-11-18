@@ -1,6 +1,6 @@
 # target-postgres
 
-`target-postgres` is a Singer target for postgres. !!! Warning !!! really early version.  It works barely 😵 for full table loads. 
+`target-postgres` is a Singer target for PostgreSQL. !!! Warning !!! really early version.  It works barely 😵 for full table loads. 
 
 Build with the [Meltano Target SDK](https://sdk.meltano.com).
 
