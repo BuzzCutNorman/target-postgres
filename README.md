@@ -12,7 +12,6 @@ pipx install git+https://github.com/BuzzCutNorman/target-postgres.git
 
 Install using [Meltano](https://www.meltano.com) as a [Custom Plugin](https://docs.meltano.com/guide/plugin-management#custom-plugins)
 
--->
 
 ## Configuration
 
