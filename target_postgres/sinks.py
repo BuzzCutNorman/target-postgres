@@ -5,7 +5,7 @@ from typing import Any, Dict, cast, Iterable, Optional
 
 import sqlalchemy
 from sqlalchemy import DDL, Table, MetaData, exc, types, engine_from_config
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import URL,Engine
 
 from singer_sdk.sinks import SQLSink
@@ -59,7 +59,7 @@ class postgresConnector(SQLConnector):
         )
 
         if 'port' in config:
-            config_url.set(port=config['port'])
+            config_url = config_url.set(port=config['port'])
         
         if 'sqlalchemy_url_query' in config:
             config_url = config_url.update_query_dict(config['sqlalchemy_url_query'])
@@ -97,6 +97,35 @@ class postgresConnector(SQLConnector):
         if jsonschema_type.get('format') == 'date-time':
             return cast(types.TypeEngine, sqlalchemy.types.TIMESTAMP())
 
+        # Postgres Integers
+        if 'integer' in jsonschema_type.get('type'):
+            minimum = jsonschema_type.get('minimum')
+            maximum = jsonschema_type.get('maximum')
+            if (minimum == -9223372036854775808) and (maximum == 9223372036854775807):
+                return cast(sqlalchemy.types.TypeEngine, postgresql.BIGINT())
+            elif (minimum == -2147483648) and (maximum == 2147483647):
+                return cast(sqlalchemy.types.TypeEngine, postgresql.INTEGER())
+            elif (minimum == -32768) and (maximum == 32767):
+                return cast(sqlalchemy.types.TypeEngine, postgresql.SMALLINT())
+            elif (minimum == 0) and (maximum == 255):
+                # This is a MSSQL only DataType of TINYINT
+                return cast(sqlalchemy.types.TypeEngine, postgresql.SMALLINT())
+
+        # Postgres monetary currency, float, and real 
+        if 'number' in jsonschema_type.get('type'):  
+            minimum = jsonschema_type.get('minimum')
+            maximum = jsonschema_type.get('maximum')
+            if (minimum == -922337203685477.6) and (maximum == 922337203685477.6):
+            # There is something that is traucating and rounding this number
+            # if (minimum == -922337203685477.5808) and (maximum == 922337203685477.5807):
+                return cast(sqlalchemy.types.TypeEngine, postgresql.MONEY())
+            elif (minimum == -214748.3648) and (maximum == 214748.3647):
+                # This is a MSSQL only DataType of SMALLMONEY
+                return cast(sqlalchemy.types.TypeEngine, postgresql.MONEY())
+            elif (minimum == -1.79e308) and (maximum == 1.79e308):
+                return cast(sqlalchemy.types.TypeEngine, postgresql.FLOAT())
+            elif (minimum == -3.40e38) and (maximum == 3.40e38):
+                return cast(sqlalchemy.types.TypeEngine, postgresql.REAL())
         return SQLConnector.to_sql_type(jsonschema_type)
 
 
@@ -124,6 +153,7 @@ class postgresSink(SQLSink):
         # name = re.sub(r"[^a-zA-Z0-9_\-\.\s]", "", name)
         # # convert to snakecase
         # name = snakecase(name)
+        name = name.lower()
         # # replace leading digit
         # return replace_leading_digit(name)
         return(name)
@@ -143,7 +173,7 @@ class postgresSink(SQLSink):
         Returns:
             An insert statement.
         """
-        statement = insert(self.connector.get_table(full_table_name))
+        statement = postgresql.insert(self.connector.get_table(full_table_name))
 
         return statement
 
@@ -168,6 +198,13 @@ class postgresSink(SQLSink):
         Returns:
             True if table exists, False if not, None if unsure or undetectable.
         """
+
+        conformed_records = (
+            [self.conform_record(record) for record in records]
+            if isinstance(records, list)
+            else (self.conform_record(record) for record in records)
+        )
+
         insert_sql = self.generate_insert_statement(
             full_table_name,
             schema,
@@ -178,7 +215,7 @@ class postgresSink(SQLSink):
                 with conn.begin():
                     conn.execute(
                         insert_sql,
-                        records,
+                        conformed_records,
                     )
         except exc.SQLAlchemyError as e:
             error = str(e.__dict__['orig'])
