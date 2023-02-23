@@ -5,7 +5,7 @@ from typing import Any, Dict, cast, Iterable, Optional
 
 import sqlalchemy
 from sqlalchemy import DDL, Table, MetaData, exc, types, engine_from_config
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import URL,Engine
 
 from singer_sdk.sinks import SQLSink
@@ -59,7 +59,7 @@ class postgresConnector(SQLConnector):
         )
 
         if 'port' in config:
-            config_url.set(port=config['port'])
+            config_url = config_url.set(port=config['port'])
         
         if 'sqlalchemy_url_query' in config:
             config_url = config_url.update_query_dict(config['sqlalchemy_url_query'])
@@ -84,8 +84,19 @@ class postgresConnector(SQLConnector):
 
         return engine_from_config(eng_config, prefix=eng_prefix)
 
+    def to_sql_type(self, jsonschema_type: dict) -> None:
+        """Returns a JSON Schema equivalent for the given SQL type.
+
+        Developers may optionally add custom logic before calling the default
+        implementation inherited from the base class.
+        """
+        if self.config.get('hd_jsonschema_types',False):
+            return self.hd_to_sql_type(jsonschema_type)
+        else: 
+            return self.org_to_sql_type(jsonschema_type)
+
     @staticmethod
-    def to_sql_type(jsonschema_type: dict) -> sqlalchemy.types.TypeEngine:
+    def org_to_sql_type(jsonschema_type: dict) -> sqlalchemy.types.TypeEngine:
         """Returns a JSON Schema equivalent for the given SQL type.
         
         Developers may optionally add custom logic before calling the default implementation
@@ -96,7 +107,82 @@ class postgresConnector(SQLConnector):
         #logger = logging.getLogger("sqlconnector")
         if jsonschema_type.get('format') == 'date-time':
             return cast(types.TypeEngine, sqlalchemy.types.TIMESTAMP())
+        
+        return SQLConnector.to_sql_type(jsonschema_type)
 
+    @staticmethod
+    def hd_to_sql_type(jsonschema_type: dict) -> types.TypeEngine:
+        """Returns a JSON Schema equivalent for the given SQL type.
+        
+        Developers may optionally add custom logic before calling the default implementation
+        inherited from the base class.
+        """
+        # JSON Strings to Postgres 
+        if 'string' in jsonschema_type.get('type'):
+            if jsonschema_type.get("format") == "date":
+                return cast(sqlalchemy.types.TypeEngine, postgresql.DATE())
+            if jsonschema_type.get("format") == "time":
+                return cast(sqlalchemy.types.TypeEngine, postgresql.TIME())
+            if jsonschema_type.get("format") == "date-time":
+                return cast(sqlalchemy.types.TypeEngine, postgresql.TIMESTAMP())
+            if jsonschema_type.get("format") == "uuid":
+                return cast(sqlalchemy.types.TypeEngine, postgresql.UUID())
+            length:int = jsonschema_type.get('maxLength')
+            if length:
+                return cast(sqlalchemy.types.TypeEngine,  postgresql.VARCHAR(length=length))
+            else:
+                return cast(sqlalchemy.types.TypeEngine, postgresql.VARCHAR())
+        
+        # JSON Boolean to Postgres
+        if 'boolean' in jsonschema_type.get('type'):
+            return cast(types.TypeEngine, postgresql.BOOLEAN())
+        
+        # JSON Integers to Postgres
+        if 'integer' in jsonschema_type.get('type'):
+            minimum = jsonschema_type.get('minimum')
+            maximum = jsonschema_type.get('maximum')
+            if (minimum == -9223372036854775808) and (maximum == 9223372036854775807):
+                return cast(sqlalchemy.types.TypeEngine, postgresql.BIGINT())
+            elif (minimum == -2147483648) and (maximum == 2147483647):
+                return cast(sqlalchemy.types.TypeEngine, postgresql.INTEGER())
+            elif (minimum == -32768) and (maximum == 32767):
+                return cast(sqlalchemy.types.TypeEngine, postgresql.SMALLINT())
+            elif (minimum == 0) and (maximum == 255):
+                # This is a MSSQL only DataType of TINYINT
+                return cast(sqlalchemy.types.TypeEngine, postgresql.SMALLINT())
+
+        # JSON Numbers to Postgres 
+        if 'number' in jsonschema_type.get('type'):  
+            minimum = jsonschema_type.get('minimum')
+            maximum = jsonschema_type.get('maximum')
+            if (minimum == -922337203685477.6) and (maximum == 922337203685477.6):
+            # There is something that is traucating and rounding this number
+            # if (minimum == -922337203685477.5808) and (maximum == 922337203685477.5807):
+                return cast(sqlalchemy.types.TypeEngine, postgresql.MONEY())
+            elif (minimum == -214748.3648) and (maximum == 214748.3647):
+                # This is a MSSQL only DataType of SMALLMONEY
+                return cast(sqlalchemy.types.TypeEngine, postgresql.MONEY())
+            elif (minimum == -1.79e308) and (maximum == 1.79e308):
+                return cast(sqlalchemy.types.TypeEngine, postgresql.FLOAT())
+            elif (minimum == -3.40e38) and (maximum == 3.40e38):
+                return cast(sqlalchemy.types.TypeEngine, postgresql.REAL())
+            else:
+                # Python will start using scientific notition for float values.
+                # A check for 'e+' in the string of the value is what I key off.
+                # If it is no present we can count the number of '9' in the string.
+                # If it is present we need to do a little more parsing to translate.
+                if 'e+' not in str(maximum):
+                    precision = str(maximum).count('9')
+                    scale = precision - str(maximum).rfind('.')
+                    return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision,scale=scale))
+                else:
+                    precision_start = str(maximum).rfind('+')
+                    precision = int(str(maximum)[precision_start:])
+                    scale_start = str(maximum).find('.') + 1
+                    scale_end = str(maximum).find('e')
+                    scale = scale_end - scale_start
+                    return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision,scale=scale))  
+                
         return SQLConnector.to_sql_type(jsonschema_type)
 
 
@@ -124,6 +210,7 @@ class postgresSink(SQLSink):
         # name = re.sub(r"[^a-zA-Z0-9_\-\.\s]", "", name)
         # # convert to snakecase
         # name = snakecase(name)
+        name = name.lower()
         # # replace leading digit
         # return replace_leading_digit(name)
         return(name)
@@ -143,7 +230,7 @@ class postgresSink(SQLSink):
         Returns:
             An insert statement.
         """
-        statement = insert(self.connector.get_table(full_table_name))
+        statement = postgresql.insert(self.connector.get_table(full_table_name))
 
         return statement
 
@@ -168,6 +255,13 @@ class postgresSink(SQLSink):
         Returns:
             True if table exists, False if not, None if unsure or undetectable.
         """
+
+        conformed_records = (
+            [self.conform_record(record) for record in records]
+            if isinstance(records, list)
+            else (self.conform_record(record) for record in records)
+        )
+
         insert_sql = self.generate_insert_statement(
             full_table_name,
             schema,
@@ -178,7 +272,7 @@ class postgresSink(SQLSink):
                 with conn.begin():
                     conn.execute(
                         insert_sql,
-                        records,
+                        conformed_records,
                     )
         except exc.SQLAlchemyError as e:
             error = str(e.__dict__['orig'])
