@@ -24,14 +24,6 @@ class postgresConnector(SQLConnector):
     allow_merge_upsert: bool = False  # Whether MERGE UPSERT is supported.
     allow_temp_tables: bool = True  # Whether temp tables are supported.
 
-    def get_sqlalchemy_url(self, config: dict) -> str:
-        """Generates a SQLAlchemy URL for postgres.
-
-        Args:
-            config: The configuration for the connector.
-        """
-        return super().get_sqlalchemy_url(config)
-
     def get_sqlalchemy_url(cls, config: dict) -> str:
         """Generates a SQLAlchemy URL for postgresql.
 
@@ -66,7 +58,7 @@ class postgresConnector(SQLConnector):
         
         return (config_url)
 
-    def create_sqlalchemy_engine(self) -> Engine:
+    def create_engine(self) -> Engine:
         """Return a new SQLAlchemy engine using the provided config.
 
         Developers can generally override just one of the following:
@@ -83,6 +75,15 @@ class postgresConnector(SQLConnector):
                 eng_config.update({f"{eng_prefix}{key}": value})
 
         return engine_from_config(eng_config, prefix=eng_prefix)
+
+    def create_schema(self, schema_name: str) -> None:
+        """Create target schema.
+
+        Args:
+            schema_name: The target schema to create.
+        """
+        with self._engine.connect() as conn:
+                conn.execute(sqlalchemy.schema.CreateSchema(schema_name))
 
     def to_sql_type(self, jsonschema_type: dict) -> None:
         """Returns a JSON Schema equivalent for the given SQL type.
@@ -268,7 +269,7 @@ class postgresSink(SQLSink):
         )
 
         try:
-            with self.connector.connection.engine.connect() as conn:
+            with self.connector._engine.connect() as conn:
                 with conn.begin():
                     conn.execute(
                         insert_sql,
