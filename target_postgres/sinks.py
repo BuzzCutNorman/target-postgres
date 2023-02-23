@@ -58,7 +58,7 @@ class postgresConnector(SQLConnector):
         
         return (config_url)
 
-    def create_sqlalchemy_engine(self) -> Engine:
+    def create_engine(self) -> Engine:
         """Return a new SQLAlchemy engine using the provided config.
 
         Developers can generally override just one of the following:
