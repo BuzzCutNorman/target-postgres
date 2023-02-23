@@ -116,8 +116,24 @@ class postgresConnector(SQLConnector):
         inherited from the base class.
         """
         # JSON Strings to Postgres 
-        if jsonschema_type.get('format') == 'date-time':
-            return cast(types.TypeEngine, sqlalchemy.types.TIMESTAMP())
+        if 'string' in jsonschema_type.get('type'):
+            if jsonschema_type.get("format") == "date":
+                return cast(sqlalchemy.types.TypeEngine, postgresql.DATE())
+            if jsonschema_type.get("format") == "time":
+                return cast(sqlalchemy.types.TypeEngine, postgresql.TIME())
+            if jsonschema_type.get("format") == "date-time":
+                return cast(sqlalchemy.types.TypeEngine, postgresql.TIMESTAMP())
+            if jsonschema_type.get("format") == "uuid":
+                return cast(sqlalchemy.types.TypeEngine, postgresql.UUID())
+            length:int = jsonschema_type.get('maxLength')
+            if length:
+                return cast(sqlalchemy.types.TypeEngine,  postgresql.VARCHAR(length=length))
+            else:
+                return cast(sqlalchemy.types.TypeEngine, postgresql.VARCHAR())
+        
+        # JSON Boolean to Postgres
+        if 'boolean' in jsonschema_type.get('type'):
+            return cast(types.TypeEngine, postgresql.BOOLEAN())
         
         # JSON Integers to Postgres
         if 'integer' in jsonschema_type.get('type'):
@@ -148,6 +164,23 @@ class postgresConnector(SQLConnector):
                 return cast(sqlalchemy.types.TypeEngine, postgresql.FLOAT())
             elif (minimum == -3.40e38) and (maximum == 3.40e38):
                 return cast(sqlalchemy.types.TypeEngine, postgresql.REAL())
+            else:
+                # Python will start using scientific notition for float values.
+                # A check for 'e+' in the string of the value is what I key off.
+                # If it is no present we can count the number of '9' in the string.
+                # If it is present we need to do a little more parsing to translate.
+                if 'e+' not in str(maximum):
+                    precision = str(maximum).count('9')
+                    scale = precision - str(maximum).rfind('.')
+                    return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision,scale=scale))
+                else:
+                    precision_start = str(maximum).rfind('+')
+                    precision = int(str(maximum)[precision_start:])
+                    scale_start = str(maximum).find('.') + 1
+                    scale_end = str(maximum).find('e')
+                    scale = scale_end - scale_start
+                    return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision,scale=scale))  
+                
         return SQLConnector.to_sql_type(jsonschema_type)
 
 
