@@ -3,7 +3,10 @@
 `target-postgres` is a Singer target for PostgreSQL. !!! Warning !!! really early version.  It works barely 😵 for full table loads. 
 
 Build with the [Meltano Target SDK](https://sdk.meltano.com).
+### Whats New 🛳️🎉
+**2023-02-08 Higher Defined(HD) JSON Schema types:**  Translates the Higher Defined(HD) JSON Schema types from the buzzcutnorman `tap-mssql` back into PostgreSQL data types.  You can give it a try by setting `hd_jsonschema_types` to `True` in your config.json or meltano.yml
 
+## Installation
 Install from GitHub:
 
 ```bash
@@ -38,6 +41,7 @@ target-postgres --about --format=markdown
 | default_target_schema| False    | None    | The Default schema to place all streams |
 | sqlalchemy_eng_params| False    | None    | SQLAlchemy Engine Paramaters: executemany_mode, future |
 | batch_config         | False    | None    | Optional Batch Message configuration |
+| hd_jsonschema_types  | False   |       0 | Turn on translation of Higher Defined(HD) JSON Schema types to SQL Types |
 | stream_maps          | False    | None    | Config object for stream maps capability. For more information check out [Stream Maps](https://sdk.meltano.com/en/latest/stream_maps.html). |
 | stream_map_config    | False    | None    | User-defined config values to be used within map expressions. |
 | flattening_enabled   | False    | None    | 'True' to enable schema flattening and automatically expand nested properties. |
