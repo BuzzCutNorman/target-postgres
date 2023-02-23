@@ -24,14 +24,6 @@ class postgresConnector(SQLConnector):
     allow_merge_upsert: bool = False  # Whether MERGE UPSERT is supported.
     allow_temp_tables: bool = True  # Whether temp tables are supported.
 
-    def get_sqlalchemy_url(self, config: dict) -> str:
-        """Generates a SQLAlchemy URL for postgres.
-
-        Args:
-            config: The configuration for the connector.
-        """
-        return super().get_sqlalchemy_url(config)
-
     def get_sqlalchemy_url(cls, config: dict) -> str:
         """Generates a SQLAlchemy URL for postgresql.
 
