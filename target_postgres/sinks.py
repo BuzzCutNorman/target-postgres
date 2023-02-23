@@ -107,6 +107,8 @@ class postgresConnector(SQLConnector):
         #logger = logging.getLogger("sqlconnector")
         if jsonschema_type.get('format') == 'date-time':
             return cast(types.TypeEngine, sqlalchemy.types.TIMESTAMP())
+        
+        return SQLConnector.to_sql_type(jsonschema_type)
 
     @staticmethod
     def hd_to_sql_type(jsonschema_type: dict) -> types.TypeEngine:
