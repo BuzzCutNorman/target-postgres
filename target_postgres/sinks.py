@@ -84,8 +84,19 @@ class postgresConnector(SQLConnector):
 
         return engine_from_config(eng_config, prefix=eng_prefix)
 
+    def to_sql_type(self, jsonschema_type: dict) -> None:
+        """Returns a JSON Schema equivalent for the given SQL type.
+
+        Developers may optionally add custom logic before calling the default
+        implementation inherited from the base class.
+        """
+        if self.config.get('hd_jsonschema_types',False):
+            return self.hd_to_sql_type(jsonschema_type)
+        else: 
+            return self.org_to_sql_type(jsonschema_type)
+
     @staticmethod
-    def to_sql_type(jsonschema_type: dict) -> sqlalchemy.types.TypeEngine:
+    def org_to_sql_type(jsonschema_type: dict) -> sqlalchemy.types.TypeEngine:
         """Returns a JSON Schema equivalent for the given SQL type.
         
         Developers may optionally add custom logic before calling the default implementation
@@ -97,7 +108,18 @@ class postgresConnector(SQLConnector):
         if jsonschema_type.get('format') == 'date-time':
             return cast(types.TypeEngine, sqlalchemy.types.TIMESTAMP())
 
-        # Postgres Integers
+    @staticmethod
+    def hd_to_sql_type(jsonschema_type: dict) -> types.TypeEngine:
+        """Returns a JSON Schema equivalent for the given SQL type.
+        
+        Developers may optionally add custom logic before calling the default implementation
+        inherited from the base class.
+        """
+        # JSON Strings to Postgres 
+        if jsonschema_type.get('format') == 'date-time':
+            return cast(types.TypeEngine, sqlalchemy.types.TIMESTAMP())
+        
+        # JSON Integers to Postgres
         if 'integer' in jsonschema_type.get('type'):
             minimum = jsonschema_type.get('minimum')
             maximum = jsonschema_type.get('maximum')
@@ -111,7 +133,7 @@ class postgresConnector(SQLConnector):
                 # This is a MSSQL only DataType of TINYINT
                 return cast(sqlalchemy.types.TypeEngine, postgresql.SMALLINT())
 
-        # Postgres monetary currency, float, and real 
+        # JSON Numbers to Postgres 
         if 'number' in jsonschema_type.get('type'):  
             minimum = jsonschema_type.get('minimum')
             maximum = jsonschema_type.get('maximum')
