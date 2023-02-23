@@ -84,7 +84,7 @@ class postgresConnector(SQLConnector):
         """
         with self._engine.connect() as conn:
                 conn.execute(sqlalchemy.schema.CreateSchema(schema_name))
-                
+
     def to_sql_type(self, jsonschema_type: dict) -> None:
         """Returns a JSON Schema equivalent for the given SQL type.
 
@@ -269,7 +269,7 @@ class postgresSink(SQLSink):
         )
 
         try:
-            with self.connector.connection.engine.connect() as conn:
+            with self.connector._engine.connect() as conn:
                 with conn.begin():
                     conn.execute(
                         insert_sql,
