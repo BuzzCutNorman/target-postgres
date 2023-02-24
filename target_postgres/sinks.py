@@ -151,6 +151,9 @@ class postgresConnector(SQLConnector):
             elif (minimum == 0) and (maximum == 255):
                 # This is a MSSQL only DataType of TINYINT
                 return cast(sqlalchemy.types.TypeEngine, postgresql.SMALLINT())
+            else:
+                precision = str(maximum).count('9')
+                return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision,scale=0))
 
         # JSON Numbers to Postgres 
         if 'number' in jsonschema_type.get('type'):  
