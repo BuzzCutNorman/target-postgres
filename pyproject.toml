@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "target-postgres"
+name = "buzzcutnorman-target-postgres"
 version = "0.0.1"
 description = "`target-postgres` is a Singer target for postgres, built with the Meltano Singer SDK."
 readme = "README.md"
@@ -8,21 +8,26 @@ keywords = [
     "ELT",
     "postgres",
 ]
-license = "Apache 2.0"
+license = "MIT"
+packages = [
+    { include = "target_postgres" },
+]
 
 [tool.poetry.dependencies]
 python = "<3.12,>=3.7.1"
-singer-sdk = { version="^0.20.0"}
-fs-s3fs = { version = "^1.1.1", optional = true}
-psycopg2 = "^2.9.5"
+singer-sdk = { version="^0.24.0" }
+fs-s3fs = { version = "^1.1.1", optional = true }
+psycopg2 = "^2.9.6"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.2.1"
 flake8 = "^5.0.4"
+darglint = "^1.8.1"
 black = "^23.1.0"
-pydocstyle = "^6.3.0"
+pyupgrade = "^3.3.1"
 mypy = "^1.0.0"
 isort = "^5.11.5"
+singer-sdk = { version="^0.24.0", extras = ["testing"] }
 
 [tool.poetry.extras]
 s3 = ["fs-s3fs"]
