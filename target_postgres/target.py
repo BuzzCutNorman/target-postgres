@@ -43,6 +43,7 @@ class Targetpostgres(SQLTarget):
         th.Property(
             "password",
             th.StringType,
+            secret=True,  # Flag config as protected.
             description="The Password for the User account"
         ),
         th.Property(
@@ -59,24 +60,24 @@ class Targetpostgres(SQLTarget):
             "sqlalchemy_eng_params",
             th.ObjectType(
                 th.Property(
-                "executemany_mode",
-                th.StringType,
-                description="Executemany Mode: values_plus_batch,"
+                    "executemany_mode",
+                    th.StringType,
+                    description="Executemany Mode: values_plus_batch,"
                 ),
                 th.Property(
-                "executemany_values_page_size",
-                th.IntegerType,
-                description="Executemany Values Page Size: Number:,"
+                    "executemany_values_page_size",
+                    th.IntegerType,
+                    description="Executemany Values Page Size: Number:,"
                 ),
                 th.Property(
-                "executemany_batch_page_size",
-                th.IntegerType,
-                description="Executemany Batch Page Size: Number:,"
+                    "executemany_batch_page_size",
+                    th.IntegerType,
+                    description="Executemany Batch Page Size: Number:,"
                 ),
                 th.Property(
-                "future",
-                th.StringType,
-                description="Run the engine in 2.0 mode: True, False"
+                    "future",
+                    th.StringType,
+                    description="Run the engine in 2.0 mode: True, False"
                 )
             ),
             description="SQLAlchemy Engine Paramaters: executemany_mode, future"
@@ -95,7 +96,7 @@ class Targetpostgres(SQLTarget):
         #         description="This is a Yes No option"
         #         )
         #     ),
-        #     description="SQLAlchemy URL Query options: driver, TrustServerCertificate"    
+        #     description="SQLAlchemy URL Query options: driver, TrustServerCertificate"
         # ),
         th.Property(
             "batch_config",
@@ -115,7 +116,7 @@ class Targetpostgres(SQLTarget):
                         )
                     )
                 ),
-                    th.Property(
+                th.Property(
                     "storage",
                     th.ObjectType(
                         th.Property(
