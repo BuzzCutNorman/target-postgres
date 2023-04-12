@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "buzzcutnorman-target-postgres"
+name = "target-postgres"
 version = "0.0.1"
 description = "`target-postgres` is a Singer target for postgres, built with the Meltano Singer SDK."
 readme = "README.md"
@@ -9,9 +9,6 @@ keywords = [
     "postgres",
 ]
 license = "MIT"
-packages = [
-    { include = "target_postgres" },
-]
 
 [tool.poetry.dependencies]
 python = "<3.12,>=3.7.1"
