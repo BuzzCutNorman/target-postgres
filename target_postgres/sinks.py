@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Dict, cast, Iterable, Optional
 
 import sqlalchemy
-from sqlalchemy import DDL, Table, MetaData, exc, types, engine_from_config
+from sqlalchemy import Table, MetaData, exc, types, engine_from_config
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.url import URL
@@ -254,24 +254,6 @@ class postgresSink(SQLSink):
         return name
         # return super().conform_name(name)
 
-    def generate_insert_statement(
-        self,
-        full_table_name: str,
-        schema: dict,
-    ) -> str:
-        """Generate an insert statement for the given records.
-
-        Args:
-            full_table_name: the target table name.
-            schema: the JSON schema for the new table.
-
-        Returns:
-            An insert statement.
-        """
-        statement = postgresql.insert(self.connector.get_table(full_table_name))
-
-        return statement
-
     def bulk_insert_records(
         self,
         full_table_name: str,
@@ -293,6 +275,17 @@ class postgresSink(SQLSink):
         Returns:
             True if table exists, False if not, None if unsure or undetectable.
         """
+        # We need to grab the schema_name and table_name 
+        # for the Table class instance
+        _, schema_name, table_name = SQLConnector.parse_full_table_name(self, full_table_name=full_table_name)
+        
+        # You also need a blank MetaData instance
+        # for the Table class instance
+        meta = MetaData()
+
+        # This is the Table instance that will autoload
+        # all the info about the table from the target server
+        table = Table(table_name, meta, autoload=True, autoload_with=self.connector._engine, schema=schema_name)
 
         conformed_records = (
             [self.conform_record(record) for record in records]
@@ -300,16 +293,13 @@ class postgresSink(SQLSink):
             else (self.conform_record(record) for record in records)
         )
 
-        insert_sql = self.generate_insert_statement(
-            full_table_name,
-            schema,
-        )
-
+        # This is a insert based off SQLA example
+        # https://docs.sqlalchemy.org/en/20/dialects/mssql.html#insert-behavior
         try:
             with self.connector._engine.connect() as conn:
                 with conn.begin():
                     conn.execute(
-                        insert_sql,
+                        table.insert(),
                         conformed_records,
                     )
         except exc.SQLAlchemyError as e:
