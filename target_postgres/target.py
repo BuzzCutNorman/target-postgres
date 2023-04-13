@@ -14,6 +14,8 @@ class Targetpostgres(SQLTarget):
     """Sample target for postgres."""
 
     name = "target-postgres"
+    default_sink_class = postgresSink
+
     config_jsonschema = th.PropertiesList(
         th.Property(
             "dialect",
@@ -101,7 +103,7 @@ class Targetpostgres(SQLTarget):
         th.Property(
             "batch_config",
             th.ObjectType(
-                th.Property( 
+                th.Property(
                     "encoding",
                     th.ObjectType(
                         th.Property(
@@ -143,8 +145,6 @@ class Targetpostgres(SQLTarget):
             description="Turn on translation of Higher Defined(HD) JSON Schema types to SQL Types"
         ),
     ).to_dict()
-
-    default_sink_class = postgresSink
 
 
 if __name__ == "__main__":
