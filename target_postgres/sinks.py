@@ -4,9 +4,10 @@ from __future__ import annotations
 from typing import Any, Dict, cast, Iterable, Optional
 
 import sqlalchemy
-from sqlalchemy import DDL, Table, MetaData, exc, types, engine_from_config
+from sqlalchemy import Table, MetaData, exc, types, engine_from_config
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.engine import URL,Engine
+from sqlalchemy.engine import Engine
+from sqlalchemy.engine.url import URL
 
 from singer_sdk.sinks import SQLSink
 from singer_sdk.connectors import SQLConnector
@@ -25,18 +26,21 @@ class postgresConnector(SQLConnector):
     allow_temp_tables: bool = True  # Whether temp tables are supported.
 
     def get_sqlalchemy_url(cls, config: dict) -> str:
-        """Generates a SQLAlchemy URL for postgresql.
+        """Return the SQLAlchemy URL string.
 
         Args:
-            config: The configuration for the connector.
+            config: A dictionary of settings from the tap or target config.
+
+        Returns:
+            The URL as a string.
         """
         if config['dialect'] == "postgresql":
-            url_drivername:str = config['dialect']
+            url_drivername: str = config['dialect']
         else:
             cls.logger.error("Invalid dialect given")
             exit(1)
 
-        if config['driver_type'] in ["psycopg2","pg8000","asyncpg","psycopg2cffi","pypostgresql","pygresql"]:
+        if config['driver_type'] in ["psycopg2", "pg8000", "asyncpg", "psycopg2cffi", "pypostgresql", "pygresql"]:
             url_drivername += f"+{config['driver_type']}"
         else:
             cls.logger.error("Invalid driver_type given")
@@ -46,16 +50,16 @@ class postgresConnector(SQLConnector):
             url_drivername,
             config['user'],
             config['password'],
-            host = config['host'],
-            database = config['database']
+            host=config['host'],
+            database=config['database']
         )
 
         if 'port' in config:
             config_url = config_url.set(port=config['port'])
-        
+
         if 'sqlalchemy_url_query' in config:
             config_url = config_url.update_query_dict(config['sqlalchemy_url_query'])
-        
+
         return (config_url)
 
     def create_engine(self) -> Engine:
@@ -68,7 +72,10 @@ class postgresConnector(SQLConnector):
             A newly created SQLAlchemy engine object.
         """
         eng_prefix = "ep."
-        eng_config = {f"{eng_prefix}url":self.sqlalchemy_url,f"{eng_prefix}echo":"False"}
+        eng_config = {
+            f"{eng_prefix}url": self.sqlalchemy_url,
+            f"{eng_prefix}echo": "False"
+        }
 
         if self.config.get('sqlalchemy_eng_params'):
             for key, value in self.config['sqlalchemy_eng_params'].items():
@@ -83,42 +90,72 @@ class postgresConnector(SQLConnector):
             schema_name: The target schema to create.
         """
         with self._engine.connect() as conn:
-                conn.execute(sqlalchemy.schema.CreateSchema(schema_name))
+            conn.execute(sqlalchemy.schema.CreateSchema(schema_name))
 
     def to_sql_type(self, jsonschema_type: dict) -> None:
-        """Returns a JSON Schema equivalent for the given SQL type.
+        """Return a JSON Schema representation of the provided type.
 
-        Developers may optionally add custom logic before calling the default
-        implementation inherited from the base class.
+        By default will call `typing.to_sql_type()`.
+
+        Developers may override this method to accept additional input
+        argument types, to support non-standard types, or to provide custom
+        typing logic. If overriding this method, developers should call the
+        default implementation from the base class for all unhandled cases.
+
+        Args:
+            jsonschema_type: The JSON Schema representation of the source type.
+
+        Returns:
+            The SQLAlchemy type representation of the data type.
         """
-        if self.config.get('hd_jsonschema_types',False):
+        if self.config.get('hd_jsonschema_types', False):
             return self.hd_to_sql_type(jsonschema_type)
-        else: 
+        else:
             return self.org_to_sql_type(jsonschema_type)
 
     @staticmethod
     def org_to_sql_type(jsonschema_type: dict) -> sqlalchemy.types.TypeEngine:
-        """Returns a JSON Schema equivalent for the given SQL type.
-        
-        Developers may optionally add custom logic before calling the default implementation
-        inherited from the base class.
+        """Return a JSON Schema representation of the provided type.
+
+        By default will call `typing.to_sql_type()`.
+
+        Developers may override this method to accept additional input
+        argument types, to support non-standard types, or to provide custom
+        typing logic. If overriding this method, developers should call the
+        default implementation from the base class for all unhandled cases.
+
+        Args:
+            jsonschema_type: The JSON Schema representation of the source type.
+
+        Returns:
+            The SQLAlchemy type representation of the data type.
         """
         # Optionally, add custom logic before calling the super().
         # You may delete this method if overrides are not needed.
-        #logger = logging.getLogger("sqlconnector")
+        # logger = logging.getLogger("sqlconnector")
         if jsonschema_type.get('format') == 'date-time':
             return cast(types.TypeEngine, sqlalchemy.types.TIMESTAMP())
-        
+
         return SQLConnector.to_sql_type(jsonschema_type)
 
     @staticmethod
     def hd_to_sql_type(jsonschema_type: dict) -> types.TypeEngine:
-        """Returns a JSON Schema equivalent for the given SQL type.
-        
-        Developers may optionally add custom logic before calling the default implementation
-        inherited from the base class.
+        """Return a JSON Schema representation of the provided type.
+
+        By default will call `typing.to_sql_type()`.
+
+        Developers may override this method to accept additional input
+        argument types, to support non-standard types, or to provide custom
+        typing logic. If overriding this method, developers should call the
+        default implementation from the base class for all unhandled cases.
+
+        Args:
+            jsonschema_type: The JSON Schema representation of the source type.
+
+        Returns:
+            The SQLAlchemy type representation of the data type.
         """
-        # JSON Strings to Postgres 
+        # JSON Strings to Postgres
         if 'string' in jsonschema_type.get('type'):
             if jsonschema_type.get("format") == "date":
                 return cast(sqlalchemy.types.TypeEngine, postgresql.DATE())
@@ -128,16 +165,16 @@ class postgresConnector(SQLConnector):
                 return cast(sqlalchemy.types.TypeEngine, postgresql.TIMESTAMP())
             if jsonschema_type.get("format") == "uuid":
                 return cast(sqlalchemy.types.TypeEngine, postgresql.UUID())
-            length:int = jsonschema_type.get('maxLength')
+            length: int = jsonschema_type.get('maxLength')
             if length:
                 return cast(sqlalchemy.types.TypeEngine,  postgresql.VARCHAR(length=length))
             else:
                 return cast(sqlalchemy.types.TypeEngine, postgresql.VARCHAR())
-        
+
         # JSON Boolean to Postgres
         if 'boolean' in jsonschema_type.get('type'):
             return cast(types.TypeEngine, postgresql.BOOLEAN())
-        
+
         # JSON Integers to Postgres
         if 'integer' in jsonschema_type.get('type'):
             minimum = jsonschema_type.get('minimum')
@@ -153,10 +190,10 @@ class postgresConnector(SQLConnector):
                 return cast(sqlalchemy.types.TypeEngine, postgresql.SMALLINT())
             else:
                 precision = str(maximum).count('9')
-                return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision,scale=0))
+                return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=0))
 
-        # JSON Numbers to Postgres 
-        if 'number' in jsonschema_type.get('type'):  
+        # JSON Numbers to Postgres
+        if 'number' in jsonschema_type.get('type'):
             minimum = jsonschema_type.get('minimum')
             maximum = jsonschema_type.get('maximum')
             if (minimum == -922337203685477.6) and (maximum == 922337203685477.6):
@@ -172,21 +209,21 @@ class postgresConnector(SQLConnector):
                 return cast(sqlalchemy.types.TypeEngine, postgresql.REAL())
             else:
                 # Python will start using scientific notition for float values.
-                # A check for 'e+' in the string of the value is what I key off.
-                # If it is no present we can count the number of '9' in the string.
-                # If it is present we need to do a little more parsing to translate.
+                # A check for 'e+' in the string of the value is what I key on.
+                # If it is no present we can count the number of '9' chars.
+                # If it is present we need to do a little more to translate.
                 if 'e+' not in str(maximum):
                     precision = str(maximum).count('9')
                     scale = precision - str(maximum).rfind('.')
-                    return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision,scale=scale))
+                    return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
                 else:
                     precision_start = str(maximum).rfind('+')
                     precision = int(str(maximum)[precision_start:])
                     scale_start = str(maximum).find('.') + 1
                     scale_end = str(maximum).find('e')
                     scale = scale_end - scale_start
-                    return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision,scale=scale))  
-                
+                    return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
+
         return SQLConnector.to_sql_type(jsonschema_type)
 
 
@@ -217,26 +254,8 @@ class postgresSink(SQLSink):
         name = name.lower()
         # # replace leading digit
         # return replace_leading_digit(name)
-        return(name)
-        #return super().conform_name(name)
-
-    def generate_insert_statement(
-        self,
-        full_table_name: str,
-        schema: dict,
-    ) -> str:
-        """Generate an insert statement for the given records.
-
-        Args:
-            full_table_name: the target table name.
-            schema: the JSON schema for the new table.
-
-        Returns:
-            An insert statement.
-        """
-        statement = postgresql.insert(self.connector.get_table(full_table_name))
-
-        return statement
+        return name
+        # return super().conform_name(name)
 
     def bulk_insert_records(
         self,
@@ -259,6 +278,17 @@ class postgresSink(SQLSink):
         Returns:
             True if table exists, False if not, None if unsure or undetectable.
         """
+        # We need to grab the schema_name and table_name
+        # for the Table class instance
+        _, schema_name, table_name = SQLConnector.parse_full_table_name(self, full_table_name=full_table_name)
+        
+        # You also need a blank MetaData instance
+        # for the Table class instance
+        meta = MetaData()
+
+        # This is the Table instance that will autoload
+        # all the info about the table from the target server
+        table = Table(table_name, meta, autoload=True, autoload_with=self.connector._engine, schema=schema_name)
 
         conformed_records = (
             [self.conform_record(record) for record in records]
@@ -266,16 +296,13 @@ class postgresSink(SQLSink):
             else (self.conform_record(record) for record in records)
         )
 
-        insert_sql = self.generate_insert_statement(
-            full_table_name,
-            schema,
-        )
-
+        # This is a insert based off SQLA example
+        # https://docs.sqlalchemy.org/en/20/dialects/mssql.html#insert-behavior
         try:
             with self.connector._engine.connect() as conn:
                 with conn.begin():
                     conn.execute(
-                        insert_sql,
+                        table.insert(),
                         conformed_records,
                     )
         except exc.SQLAlchemyError as e:
