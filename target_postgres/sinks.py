@@ -72,7 +72,10 @@ class postgresConnector(SQLConnector):
             A newly created SQLAlchemy engine object.
         """
         eng_prefix = "ep."
-        eng_config = {f"{eng_prefix}url": self.sqlalchemy_url, f"{eng_prefix}echo": "False"}
+        eng_config = {
+            f"{eng_prefix}url": self.sqlalchemy_url,
+            f"{eng_prefix}echo": "False"
+        }
 
         if self.config.get('sqlalchemy_eng_params'):
             for key, value in self.config['sqlalchemy_eng_params'].items():
@@ -94,10 +97,10 @@ class postgresConnector(SQLConnector):
 
         By default will call `typing.to_sql_type()`.
 
-        Developers may override this method to accept additional input argument types,
-        to support non-standard types, or to provide custom typing logic.
-        If overriding this method, developers should call the default implementation
-        from the base class for all unhandled cases.
+        Developers may override this method to accept additional input
+        argument types, to support non-standard types, or to provide custom
+        typing logic. If overriding this method, developers should call the
+        default implementation from the base class for all unhandled cases.
 
         Args:
             jsonschema_type: The JSON Schema representation of the source type.
@@ -116,10 +119,10 @@ class postgresConnector(SQLConnector):
 
         By default will call `typing.to_sql_type()`.
 
-        Developers may override this method to accept additional input argument types,
-        to support non-standard types, or to provide custom typing logic.
-        If overriding this method, developers should call the default implementation
-        from the base class for all unhandled cases.
+        Developers may override this method to accept additional input
+        argument types, to support non-standard types, or to provide custom
+        typing logic. If overriding this method, developers should call the
+        default implementation from the base class for all unhandled cases.
 
         Args:
             jsonschema_type: The JSON Schema representation of the source type.
@@ -141,10 +144,10 @@ class postgresConnector(SQLConnector):
 
         By default will call `typing.to_sql_type()`.
 
-        Developers may override this method to accept additional input argument types,
-        to support non-standard types, or to provide custom typing logic.
-        If overriding this method, developers should call the default implementation
-        from the base class for all unhandled cases.
+        Developers may override this method to accept additional input
+        argument types, to support non-standard types, or to provide custom
+        typing logic. If overriding this method, developers should call the
+        default implementation from the base class for all unhandled cases.
 
         Args:
             jsonschema_type: The JSON Schema representation of the source type.
@@ -206,9 +209,9 @@ class postgresConnector(SQLConnector):
                 return cast(sqlalchemy.types.TypeEngine, postgresql.REAL())
             else:
                 # Python will start using scientific notition for float values.
-                # A check for 'e+' in the string of the value is what I key off.
-                # If it is no present we can count the number of '9' in the string.
-                # If it is present we need to do a little more parsing to translate.
+                # A check for 'e+' in the string of the value is what I key on.
+                # If it is no present we can count the number of '9' chars.
+                # If it is present we need to do a little more to translate.
                 if 'e+' not in str(maximum):
                     precision = str(maximum).count('9')
                     scale = precision - str(maximum).rfind('.')
@@ -275,7 +278,7 @@ class postgresSink(SQLSink):
         Returns:
             True if table exists, False if not, None if unsure or undetectable.
         """
-        # We need to grab the schema_name and table_name 
+        # We need to grab the schema_name and table_name
         # for the Table class instance
         _, schema_name, table_name = SQLConnector.parse_full_table_name(self, full_table_name=full_table_name)
         
