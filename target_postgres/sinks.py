@@ -1,6 +1,7 @@
 """postgres target sink class, which handles writing streams."""
 
 from __future__ import annotations
+from base64 import b64decode
 from typing import Any, Dict, cast, Iterable, Optional
 
 import sqlalchemy
@@ -168,6 +169,11 @@ class postgresConnector(SQLConnector):
             if jsonschema_type.get("contentMediaType") == "application/xml":
                 return cast(sqlalchemy.types.TypeEngine, postgresql.TEXT())
             length: int = jsonschema_type.get('maxLength')
+            if jsonschema_type.get("contentEncoding") == "base64":
+                if length:
+                    return cast(sqlalchemy.types.TypeEngine, postgresql.BYTEA(length=length))
+                else:
+                    return cast(sqlalchemy.types.TypeEngine, postgresql.BYTEA())
             if length:
                 return cast(sqlalchemy.types.TypeEngine,  postgresql.VARCHAR(length=length))
             else:
@@ -258,6 +264,32 @@ class postgresSink(SQLSink):
         # return replace_leading_digit(name)
         return name
         # return super().conform_name(name)
+
+    def preprocess_record(self, record: dict, context: dict) -> dict:  # noqa: ARG002
+        """Process incoming record and return a modified result.
+
+        Args:
+            record: Individual record in the stream.
+            context: Stream partition or context dictionary.
+
+        Returns:
+            A new, processed record.
+        """
+        # Get the Stream Properties Dictornary from the Schema
+        properties: dict = self.schema.get('properties')
+
+        for key, value in record.items():
+            # Get the Item/Column property
+            property_schema: dict = properties.get(key)
+            # Decode base64 binary fields in record
+            if property_schema.get('contentEncoding') == 'base64':
+                # We need to change from hex first becuase in
+                # the tap _typing.py by defualt all python byte
+                # data types are converted to hex
+                value = bytes.fromhex(value)
+                record.update({key: b64decode(value)})
+
+        return record
 
     def bulk_insert_records(
         self,
