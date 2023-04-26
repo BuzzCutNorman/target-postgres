@@ -1,9 +1,11 @@
 # target-postgres
 
-`target-postgres` is a Singer target for PostgreSQL. !!! Warning !!! really early version.  It works barely 😵 for full table loads. 
+`target-postgres` is a Singer target for PostgreSQL. !!! Warning !!! really early version.  It works ok 😐. 
 
 Build with the [Meltano Target SDK](https://sdk.meltano.com).
 ### Whats New 🛳️🎉
+**2023-04-26 New HD JSON Schema Types:**  Added translations for HD JSON Schema definitions of Xml and Binary types from the buzzcutnorman `tap-mssql`.  This is Thanks🙏 to Singer-SDK 0.24.0 which allows for JSON Schema `contentMediaType` and `contentEncoding`.  Currently all Binary data types are decoded before being inserted as BYTEA.  XML types are not supported in SQLAlchemy for PostgreSQL so are they are inserted as TEXT.
+
 **2023-04-14 Upgraded to Meltano Singer-SDK 0.24.0**
 
 **2023-02-23 Higher Defined(HD) JSON Schema types:**  Translates the Higher Defined(HD) JSON Schema types from the buzzcutnorman `tap-mssql` back into PostgreSQL data types.  You can give it a try by setting `hd_jsonschema_types` to `True` in your config.json or meltano.yml
