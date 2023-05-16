@@ -365,6 +365,9 @@ class postgresSink(SQLSink):
             error = str(e.__dict__['orig'])
             self.logger.info(error)
 
+        # Finish Line for max_size perf counter
+        self.set_stop_time
+        
         if isinstance(records, list):
             return len(records)  # If list, we can quickly return record count.
 
