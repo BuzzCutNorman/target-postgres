@@ -260,9 +260,12 @@ class postgresSink(SQLSink):
 
     def counter_based_max_size(self):
         perf_diff = self.MAX_SIZE_MAX_PERF_COUNTER - self.max_size_perf_counter
+        self.logger.info(f"The pref_diff is: {perf_diff}")
 
         if perf_diff < 0:
             self.MAX_SIZE_DEFAULT = self.max_size - 10
+        elif perf_diff >= 0.75:
+            self.MAX_SIZE_DEFAULT = self.max_size + 10
 
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
