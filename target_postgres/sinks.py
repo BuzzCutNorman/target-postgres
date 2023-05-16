@@ -4,6 +4,7 @@ from __future__ import annotations
 from base64 import b64decode
 from typing import Any, Dict, cast, Iterable, Iterator, Optional
 from contextlib import contextmanager
+import time
 
 import sqlalchemy
 from sqlalchemy import Table, MetaData, exc, types, engine_from_config
