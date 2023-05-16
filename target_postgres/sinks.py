@@ -27,10 +27,11 @@ class postgresConnector(SQLConnector):
     allow_merge_upsert: bool = False  # Whether MERGE UPSERT is supported.
     allow_temp_tables: bool = True  # Whether temp tables are supported.
 
-	@contextmanager
+    @contextmanager
     def _connect(self) -> Iterator[sqlalchemy.engine.Connection]:
         with self._engine.connect() as conn:
             yield conn
+
     def get_sqlalchemy_url(cls, config: dict) -> str:
         """Return the SQLAlchemy URL string.
 
@@ -313,7 +314,7 @@ class postgresSink(SQLSink):
         # We need to grab the schema_name and table_name
         # for the Table class instance
         _, schema_name, table_name = SQLConnector.parse_full_table_name(self, full_table_name=full_table_name)
-        
+
         # You also need a blank MetaData instance
         # for the Table class instance
         meta = MetaData()
