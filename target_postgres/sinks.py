@@ -367,6 +367,13 @@ class postgresSink(SQLSink):
 
         # Finish Line for max_size perf counter
         self.set_stop_time
+
+        # logger for testing remove later start
+        self.logger.info(f"The MAX_SIZE_START_TIME {self.MAX_SIZE_START_TIME}")
+        self.logger.info(f"The MAX_SIZE_STOP_TIME {self.MAX_SIZE_STOP_TIME}")
+        self.logger.info(f"This was the total elapsed time: {self.max_size_perf_counter:0.2f} seconds")
+        self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
+        # logger end
         
         if isinstance(records, list):
             return len(records)  # If list, we can quickly return record count.
