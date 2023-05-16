@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 from base64 import b64decode
-from typing import Any, Dict, cast, Iterable, Optional
+from typing import Any, Dict, cast, Iterable, Iterator, Optional
+from contextlib import contextmanager
 
 import sqlalchemy
 from sqlalchemy import Table, MetaData, exc, types, engine_from_config
@@ -25,6 +26,11 @@ class postgresConnector(SQLConnector):
     allow_column_alter: bool = False  # Whether altering column types is supported.
     allow_merge_upsert: bool = False  # Whether MERGE UPSERT is supported.
     allow_temp_tables: bool = True  # Whether temp tables are supported.
+
+    @contextmanager
+    def _connect(self) -> Iterator[sqlalchemy.engine.Connection]:
+        with self._engine.connect() as conn:
+            yield conn
 
     def get_sqlalchemy_url(cls, config: dict) -> str:
         """Return the SQLAlchemy URL string.
@@ -83,15 +89,6 @@ class postgresConnector(SQLConnector):
                 eng_config.update({f"{eng_prefix}{key}": value})
 
         return engine_from_config(eng_config, prefix=eng_prefix)
-
-    def create_schema(self, schema_name: str) -> None:
-        """Create target schema.
-
-        Args:
-            schema_name: The target schema to create.
-        """
-        with self._engine.connect() as conn:
-            conn.execute(sqlalchemy.schema.CreateSchema(schema_name))
 
     def to_sql_type(self, jsonschema_type: dict) -> None:
         """Return a JSON Schema representation of the provided type.
@@ -317,7 +314,7 @@ class postgresSink(SQLSink):
         # We need to grab the schema_name and table_name
         # for the Table class instance
         _, schema_name, table_name = SQLConnector.parse_full_table_name(self, full_table_name=full_table_name)
-        
+
         # You also need a blank MetaData instance
         # for the Table class instance
         meta = MetaData()
@@ -335,7 +332,7 @@ class postgresSink(SQLSink):
         # This is a insert based off SQLA example
         # https://docs.sqlalchemy.org/en/20/dialects/mssql.html#insert-behavior
         try:
-            with self.connector._engine.connect() as conn:
+            with self.connector._connect() as conn:
                 with conn.begin():
                     conn.execute(
                         table.insert(),
