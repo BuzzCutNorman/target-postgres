@@ -243,6 +243,21 @@ class postgresSink(SQLSink):
     MAX_SIZE_START_TIME: float = None
     MAX_SIZE_STOP_TIME: float = None
 
+    @property
+    def set_start_time(self):
+        self.MAX_SIZE_START_TIME = time.perf_counter()
+
+    @property
+    def set_stop_time(self):
+        self.MAX_SIZE_STOP_TIME = time.perf_counter()
+
+    @property
+    def max_size_perf_counter(self) -> float:
+        if self.MAX_SIZE_STOP_TIME and self.MAX_SIZE_START_TIME:
+            perf_counter: float = self.MAX_SIZE_STOP_TIME - self.MAX_SIZE_START_TIME
+
+        return perf_counter
+
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
 
