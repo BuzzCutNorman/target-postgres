@@ -264,11 +264,13 @@ class postgresSink(SQLSink):
 
         if perf_diff < 0:
             self.MAX_SIZE_DEFAULT = self.max_size - 10
-        if perf_diff >= 0.3 and perf_diff < 0.5:
+        if perf_diff >= 0.2 and self.max_size >= 10:
+            self.MAX_SIZE_DEFAULT = self.max_size + 10
+        if perf_diff >= 0.3 and perf_diff < 0.5 and self.max_size >= 100:
             self.MAX_SIZE_DEFAULT = self.max_size + 100
-        elif perf_diff >= 0.5 and perf_diff < 0.75:
-            self.MAX_SIZE_DEFAULT = self.max_size + 1000
-        elif perf_diff >= 0.75:
+        elif perf_diff >= 0.5 and perf_diff < 0.75 and self.max_size >= 1000:
+            self.MAX_SIZE_DEFAULT = self.max_size + 5000
+        elif perf_diff >= 0.75 and self.max_size >= 5000:
             self.MAX_SIZE_DEFAULT = self.max_size + 10000
 
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
