@@ -258,6 +258,12 @@ class postgresSink(SQLSink):
 
         return perf_counter
 
+    def counter_based_max_size(self):
+        perf_diff = self.MAX_SIZE_MAX_PERF_COUNTER - self.max_size_perf_counter
+
+        if perf_diff < 0:
+            self.MAX_SIZE_DEFAULT = self.max_size - 10
+
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
 
@@ -373,8 +379,10 @@ class postgresSink(SQLSink):
         self.logger.info(f"The MAX_SIZE_STOP_TIME {self.MAX_SIZE_STOP_TIME}")
         self.logger.info(f"This was the total elapsed time: {self.max_size_perf_counter:0.2f} seconds")
         self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
-        # logger end
-        
+        self.counter_based_max_size()
+        self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
+        # logger for testing remove later ended
+
         if isinstance(records, list):
             return len(records)  # If list, we can quickly return record count.
 
