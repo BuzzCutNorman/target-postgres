@@ -293,6 +293,8 @@ class postgresSink(SQLSink):
         Returns:
             A new, processed record.
         """
+        # Starting line for max_size perf counter
+        self.set_start_time
         # Get the Stream Properties Dictornary from the Schema
         properties: dict = self.schema.get('properties')
 
