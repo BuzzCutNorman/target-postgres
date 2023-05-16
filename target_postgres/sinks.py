@@ -238,6 +238,11 @@ class postgresSink(SQLSink):
 
     connector_class = postgresConnector
 
+    MAX_SIZE_DEFAULT = 100
+    MAX_SIZE_MAX_PERF_COUNTER = 1
+    MAX_SIZE_START_TIME: float = None
+    MAX_SIZE_STOP_TIME: float = None
+
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
 
