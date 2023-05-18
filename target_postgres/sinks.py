@@ -82,7 +82,9 @@ class postgresConnector(SQLConnector):
         eng_prefix = "ep."
         eng_config = {
             f"{eng_prefix}url": self.sqlalchemy_url,
-            f"{eng_prefix}echo": "False"
+            f"{eng_prefix}echo": "False",
+            f"{eng_prefix}executemany_values_page_size": 10000,
+            f"{eng_prefix}executemany_batch_page_size": 500
         }
 
         if self.config.get('sqlalchemy_eng_params'):
@@ -253,6 +255,7 @@ class postgresSink(SQLSink):
 
     @property
     def max_size_perf_counter(self) -> float:
+        perf_counter: float = self.MAX_SIZE_MAX_PERF_COUNTER
         if self.MAX_SIZE_STOP_TIME and self.MAX_SIZE_START_TIME:
             perf_counter: float = self.MAX_SIZE_STOP_TIME - self.MAX_SIZE_START_TIME
 
@@ -260,18 +263,33 @@ class postgresSink(SQLSink):
 
     def counter_based_max_size(self):
         perf_diff = self.MAX_SIZE_MAX_PERF_COUNTER - self.max_size_perf_counter
-        self.logger.info(f"The pref_diff is: {perf_diff}")
-
-        if perf_diff < 0:
-            self.MAX_SIZE_DEFAULT = self.max_size - 10
-        if perf_diff >= 0.2 and self.max_size >= 10:
-            self.MAX_SIZE_DEFAULT = self.max_size + 10
-        if perf_diff >= 0.3 and perf_diff < 0.5 and self.max_size >= 100:
-            self.MAX_SIZE_DEFAULT = self.max_size + 100
-        elif perf_diff >= 0.5 and perf_diff < 0.75 and self.max_size >= 1000:
-            self.MAX_SIZE_DEFAULT = self.max_size + 5000
-        elif perf_diff >= 0.75 and self.max_size >= 5000:
-            self.MAX_SIZE_DEFAULT = self.max_size + 10000
+        # logger for testing remove later start
+        # self.logger.info(f"The MAX_SIZE_START_TIME {self.MAX_SIZE_START_TIME}")
+        # self.logger.info(f"The MAX_SIZE_STOP_TIME {self.MAX_SIZE_STOP_TIME}")
+        # self.logger.info(f"This was the total elapsed time: {self.max_size_perf_counter:0.2f} seconds")
+        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
+        # self.logger.info(f"The pref_diff is: {perf_diff}")
+        # logger for testing remove later ended
+        if perf_diff < -0.2:
+            if self.max_size >= 10000:
+                self.MAX_SIZE_DEFAULT = self.max_size - 1000
+            elif self.max_size >= 1000:
+                self.MAX_SIZE_DEFAULT = self.max_size - 100
+            elif self.max_size > 10:
+                self.MAX_SIZE_DEFAULT = self.max_size - 10
+        if perf_diff >= 0.3 and self.max_size < 10000:
+            # if self.max_size >= 10000:
+            #     self.MAX_SIZE_DEFAULT = self.max_size + 10000
+            if self.max_size >= 1000:
+                self.MAX_SIZE_DEFAULT = self.max_size + 1000
+            elif self.max_size >= 100:
+                self.MAX_SIZE_DEFAULT = self.max_size + 100
+            elif self.max_size >= 10:
+                self.MAX_SIZE_DEFAULT = self.max_size + 10
+            # if perf_diff >= 0.3 and perf_diff < 0.5 and self.max_size >= 100:
+            #     self.MAX_SIZE_DEFAULT = self.max_size + 100
+            # elif perf_diff >= 0.5 and self.max_size >= 1000:
+            #     self.MAX_SIZE_DEFAULT = self.max_size + 5000
 
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
@@ -309,7 +327,7 @@ class postgresSink(SQLSink):
             A new, processed record.
         """
         # Starting line for max_size perf counter
-        self.set_start_time
+        # self.set_start_time
         # Get the Stream Properties Dictornary from the Schema
         properties: dict = self.schema.get('properties')
 
@@ -381,17 +399,15 @@ class postgresSink(SQLSink):
             self.logger.info(error)
 
         # Finish Line for max_size perf counter
-        self.set_stop_time
-
-        # logger for testing remove later start
-        self.logger.info(f"The MAX_SIZE_START_TIME {self.MAX_SIZE_START_TIME}")
-        self.logger.info(f"The MAX_SIZE_STOP_TIME {self.MAX_SIZE_STOP_TIME}")
-        self.logger.info(f"This was the total elapsed time: {self.max_size_perf_counter:0.2f} seconds")
-        self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
-        self.counter_based_max_size()
-        self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
-        # logger for testing remove later ended
-
+        if self.MAX_SIZE_START_TIME:
+            self.set_stop_time
+            self.counter_based_max_size()
+        # else:
+        #     self.logger.info("No Start so Skipped Stop")
+        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
+        # Starting Line for max_size perf counter
+        self.set_start_time
+        
         if isinstance(records, list):
             return len(records)  # If list, we can quickly return record count.
 
