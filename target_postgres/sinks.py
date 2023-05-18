@@ -262,7 +262,8 @@ class postgresSink(SQLSink):
         return perf_counter
 
     def counter_based_max_size(self):
-        perf_diff = self.MAX_SIZE_MAX_PERF_COUNTER - self.max_size_perf_counter
+        max_perf_counter = self.MAX_SIZE_MAX_PERF_COUNTER
+        perf_diff = max_perf_counter - self.max_size_perf_counter
         # logger for testing remove later start
         # self.logger.info(f"The MAX_SIZE_START_TIME {self.MAX_SIZE_START_TIME}")
         # self.logger.info(f"The MAX_SIZE_STOP_TIME {self.MAX_SIZE_STOP_TIME}")
@@ -270,14 +271,14 @@ class postgresSink(SQLSink):
         # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
         # self.logger.info(f"The pref_diff is: {perf_diff}")
         # logger for testing remove later ended
-        if perf_diff < -0.2:
+        if perf_diff < -1.0*(max_perf_counter * 0.25):
             if self.max_size >= 10000:
                 self.MAX_SIZE_DEFAULT = self.max_size - 1000
             elif self.max_size >= 1000:
                 self.MAX_SIZE_DEFAULT = self.max_size - 100
             elif self.max_size > 10:
                 self.MAX_SIZE_DEFAULT = self.max_size - 10
-        if perf_diff >= 0.3 and self.max_size < 10000:
+        if perf_diff >= (max_perf_counter * 0.33) and self.max_size < 10000:
             # if self.max_size >= 10000:
             #     self.MAX_SIZE_DEFAULT = self.max_size + 10000
             if self.max_size >= 1000:
