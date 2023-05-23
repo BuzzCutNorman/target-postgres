@@ -237,6 +237,12 @@ class postgresSink(SQLSink):
 
     connector_class = postgresConnector
 
+    TARGET_TABLE: Table = None
+
+    @property
+    def target_table(self):
+        return self.TARGET_TABLE
+
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
 
@@ -290,6 +296,22 @@ class postgresSink(SQLSink):
 
         return record
 
+    def set_target_table(self, full_table_name: str):
+        # We need to grab the schema_name and table_name
+        # for the Table class instance
+        _, schema_name, table_name = SQLConnector.parse_full_table_name(self, full_table_name=full_table_name)
+
+        # You also need a blank MetaData instance
+        # for the Table class instance
+        meta = MetaData()
+
+        # This is the Table instance that will autoload
+        # all the info about the table from the target server
+        table: Table = Table(table_name, meta, autoload=True, autoload_with=self.connector._engine, schema=schema_name)
+
+        self.TARGET_TABLE = table
+        self.logger.info(f"I was called for target table: {full_table_name}")
+
     def bulk_insert_records(
         self,
         full_table_name: str,
@@ -311,17 +333,8 @@ class postgresSink(SQLSink):
         Returns:
             True if table exists, False if not, None if unsure or undetectable.
         """
-        # We need to grab the schema_name and table_name
-        # for the Table class instance
-        _, schema_name, table_name = SQLConnector.parse_full_table_name(self, full_table_name=full_table_name)
-
-        # You also need a blank MetaData instance
-        # for the Table class instance
-        meta = MetaData()
-
-        # This is the Table instance that will autoload
-        # all the info about the table from the target server
-        table = Table(table_name, meta, autoload=True, autoload_with=self.connector._engine, schema=schema_name)
+        if self.target_table is None:
+            self.set_target_table(full_table_name)
 
         conformed_records = (
             [self.conform_record(record) for record in records]
@@ -335,7 +348,7 @@ class postgresSink(SQLSink):
             with self.connector._connect() as conn:
                 with conn.begin():
                     conn.execute(
-                        table.insert(),
+                        self.target_table.insert(),
                         conformed_records,
                     )
         except exc.SQLAlchemyError as e:
