@@ -241,7 +241,7 @@ class postgresSink(SQLSink):
     connector_class = postgresConnector
 
     MAX_SIZE_DEFAULT = 100
-    MAX_SIZE_MAX_PERF_COUNTER = 5
+    MAX_SIZE_MAX_PERF_COUNTER = 1
     MAX_SIZE_START_TIME: float = None
     MAX_SIZE_STOP_TIME: float = None
 
@@ -265,11 +265,11 @@ class postgresSink(SQLSink):
         max_perf_counter = self.MAX_SIZE_MAX_PERF_COUNTER
         perf_diff = max_perf_counter - self.max_size_perf_counter
         # logger for testing remove later start
-        self.logger.info(f"The MAX_SIZE_START_TIME {self.MAX_SIZE_START_TIME}")
-        self.logger.info(f"The MAX_SIZE_STOP_TIME {self.MAX_SIZE_STOP_TIME}")
-        self.logger.info(f"This was the total elapsed time: {self.max_size_perf_counter:0.2f} seconds")
-        self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
-        self.logger.info(f"The pref_diff is: {perf_diff}")
+        # self.logger.info(f"The MAX_SIZE_START_TIME {self.MAX_SIZE_START_TIME}")
+        # self.logger.info(f"The MAX_SIZE_STOP_TIME {self.MAX_SIZE_STOP_TIME}")
+        # self.logger.info(f"This was the total elapsed time: {self.max_size_perf_counter:0.2f} seconds")
+        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
+        # self.logger.info(f"The pref_diff is: {perf_diff}")
         # logger for testing remove later ended
         if perf_diff < -1.0*(max_perf_counter * 0.25):
             if self.max_size >= 15000:
@@ -293,7 +293,7 @@ class postgresSink(SQLSink):
             #     self.MAX_SIZE_DEFAULT = self.max_size + 100
             # elif perf_diff >= 0.5 and self.max_size >= 1000:
             #     self.MAX_SIZE_DEFAULT = self.max_size + 5000
-        self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
+        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
 
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
