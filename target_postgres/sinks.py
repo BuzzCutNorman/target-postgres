@@ -244,6 +244,11 @@ class postgresSink(SQLSink):
     MAX_SIZE_MAX_PERF_COUNTER = 1
     MAX_SIZE_START_TIME: float = None
     MAX_SIZE_STOP_TIME: float = None
+    TARGET_TABLE: Table = None
+
+    @property
+    def target_table(self):
+        return self.TARGET_TABLE
 
     @property
     def set_start_time(self):
@@ -294,12 +299,6 @@ class postgresSink(SQLSink):
             # elif perf_diff >= 0.5 and self.max_size >= 1000:
             #     self.MAX_SIZE_DEFAULT = self.max_size + 5000
         # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
-
-    TARGET_TABLE: Table = None
-
-    @property
-    def target_table(self):
-        return self.TARGET_TABLE
 
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
