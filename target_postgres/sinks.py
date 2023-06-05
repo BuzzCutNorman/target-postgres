@@ -201,9 +201,9 @@ class postgresConnector(SQLConnector):
         if 'number' in jsonschema_type.get('type'):
             minimum = jsonschema_type.get('minimum')
             maximum = jsonschema_type.get('maximum')
-            if (minimum == -922337203685477.6) and (maximum == 922337203685477.6):
             # There is something that is traucating and rounding this number
             # if (minimum == -922337203685477.5808) and (maximum == 922337203685477.5807):
+            if (minimum == -922337203685477.6) and (maximum == 922337203685477.6):
                 return cast(sqlalchemy.types.TypeEngine, postgresql.MONEY())
             elif (minimum == -214748.3648) and (maximum == 214748.3647):
                 # This is a MSSQL only DataType of SMALLMONEY
@@ -236,6 +236,12 @@ class postgresSink(SQLSink):
     """postgres target sink class."""
 
     connector_class = postgresConnector
+
+    TARGET_TABLE: Table = None
+
+    @property
+    def target_table(self):
+        return self.TARGET_TABLE
 
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
@@ -290,6 +296,21 @@ class postgresSink(SQLSink):
 
         return record
 
+    def set_target_table(self, full_table_name: str):
+        # We need to grab the schema_name and table_name
+        # for the Table class instance
+        _, schema_name, table_name = SQLConnector.parse_full_table_name(self, full_table_name=full_table_name)
+
+        # You also need a blank MetaData instance
+        # for the Table class instance
+        meta = MetaData()
+
+        # This is the Table instance that will autoload
+        # all the info about the table from the target server
+        table: Table = Table(table_name, meta, autoload=True, autoload_with=self.connector._engine, schema=schema_name)
+
+        self.TARGET_TABLE = table
+
     def bulk_insert_records(
         self,
         full_table_name: str,
@@ -311,17 +332,8 @@ class postgresSink(SQLSink):
         Returns:
             True if table exists, False if not, None if unsure or undetectable.
         """
-        # We need to grab the schema_name and table_name
-        # for the Table class instance
-        _, schema_name, table_name = SQLConnector.parse_full_table_name(self, full_table_name=full_table_name)
-
-        # You also need a blank MetaData instance
-        # for the Table class instance
-        meta = MetaData()
-
-        # This is the Table instance that will autoload
-        # all the info about the table from the target server
-        table = Table(table_name, meta, autoload=True, autoload_with=self.connector._engine, schema=schema_name)
+        if self.target_table is None:
+            self.set_target_table(full_table_name)
 
         conformed_records = (
             [self.conform_record(record) for record in records]
@@ -335,7 +347,7 @@ class postgresSink(SQLSink):
             with self.connector._connect() as conn:
                 with conn.begin():
                     conn.execute(
-                        table.insert(),
+                        self.target_table.insert(),
                         conformed_records,
                     )
         except exc.SQLAlchemyError as e:
