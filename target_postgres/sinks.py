@@ -237,11 +237,11 @@ class postgresSink(SQLSink):
 
     connector_class = postgresConnector
 
-    TARGET_TABLE: Table = None
+    _target_table: Table = None
 
     @property
     def target_table(self):
-        return self.TARGET_TABLE
+        return self._target_table
 
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
@@ -309,7 +309,7 @@ class postgresSink(SQLSink):
         # all the info about the table from the target server
         table: Table = Table(table_name, meta, autoload=True, autoload_with=self.connector._engine, schema=schema_name)
 
-        self.TARGET_TABLE = table
+        self._target_table = table
 
     def bulk_insert_records(
         self,
