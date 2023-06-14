@@ -4,7 +4,7 @@
 
 Build with the [Meltano Target SDK](https://sdk.meltano.com).
 ### Whats New 🛳️🎉
-**2023-06-14 Enhancement:**  The behavior of when a new postgresConnector class is generated has been changed.  When the Target gets its first Schema message a Target level connector is generated.  This connector is then passed on to Sinks as they are initialized.  This mean instead of a database session per Sink there is a smaller pool of session being utilized over and over. You can use sp_who to see how may sessions are active.  I couldn't have added this without the SQLConnector refactoring work @qbatten did in SDK 0.20.0.  The inspiration for this enhancement came from comments made by @kgpayne. So a big Thanks 🙏 to both of them.
+**2023-06-14 Enhancement:**  The behavior of when a new postgresConnector class is generated has been changed.  When the Target gets its first Schema message a Target level connector is generated.  This connector is then passed on to Sinks as they are initialized.  This mean instead of a database session per Sink there is a smaller pool of session being utilized over and over. Database session counts are avaiable in the pgAdmin Dashboard tab for the target database.  I couldn't have added this without the SQLConnector refactoring work @qbatten did in SDK 0.20.0.  The inspiration for this enhancement came from comments made by @kgpayne. So a big Thanks 🙏 to both of them.
 
 **2023-06-05 Upgraded to Meltano Singer-SDK 0.27.0:**  Reduced the amount of times the target-postgres asks PostgreSQL for target table info by adding a TARGET_TABLE constant variable.  This reduced the amount of rollbacks occuring during a transfer.
 
