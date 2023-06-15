@@ -282,17 +282,18 @@ class postgresSink(SQLSink):
         properties: dict = self.schema.get('properties')
 
         for key, value in record.items():
-            # Get the Item/Column property
-            property_schema: dict = properties.get(key)
-            # PostgreSQL does not filter out Null characters
-            # presence of these characters will cause
-            # the target to fail out
-            if isinstance(value, str) and '\x00' in value:
-                record.update({key: value.replace('\x00', '')})
-                self.logger.info("Removed Null Character(s) From a Record")
-            # Decode base64 binary fields in record
-            if property_schema.get('contentEncoding') == 'base64':
-                record.update({key: b64decode(value)})
+            if value is not None:
+                # Get the Item/Column property
+                property_schema: dict = properties.get(key)
+                # PostgreSQL does not filter out Null characters
+                # presence of these characters will cause
+                # the target to fail out
+                if isinstance(value, str) and '\x00' in value:
+                    record.update({key: value.replace('\x00', '')})
+                    self.logger.info("Removed Null Character(s) From a Record")
+                # Decode base64 binary fields in record
+                if property_schema.get('contentEncoding') == 'base64':
+                    record.update({key: b64decode(value)})
 
         return record
 
