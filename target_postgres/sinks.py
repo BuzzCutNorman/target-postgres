@@ -278,8 +278,8 @@ class postgresConnector(SQLConnector):
                 ),
             )
 
-        _ = sqlalchemy.Table(table_name, meta, *columns)
-        meta.create_all(self._engine)
+        empty_table = sqlalchemy.Table(table_name, meta, *columns)
+        empty_table.create(self._engine)
 
 
 class postgresSink(SQLSink):
