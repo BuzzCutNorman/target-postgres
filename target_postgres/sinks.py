@@ -359,24 +359,27 @@ class SinkTimer:
         # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
         # self.logger.info(f"The pref_diff is: {perf_diff}")
         # logger for testing remove later ended
+        correction = 0
         if self.perf_diff < -1.0*(self.max_perf_counter * 0.25):
             if self.sink_max_size >= 15000:
-                return self.sink_max_size - 5000
+                correction = -5000
             if self.sink_max_size >= 10000:
-                return  self.sink_max_size - 1000
+                correction = -1000
             elif self.sink_max_size >= 1000:
-                return  self.sink_max_size - 100
+                correction = -100
             elif self.sink_max_size > 10:
-                return self.sink_max_size - 10
+                correction = 10
         if self.perf_diff >= (self.max_perf_counter * 0.5) and self.sink_max_size < 100000:
             if self.sink_max_size >= 10000:
-                return self.sink_max_size + 10000
+                correction = 10000
             if self.sink_max_size >= 1000:
-                return self.sink_max_size + 1000
+                correction = 1000
             elif self.sink_max_size >= 100:
-                return self.sink_max_size + 100
+                correction = 100
             elif self.sink_max_size >= 10:
-                return self.sink_max_size + 10
+                correction = 10
+        self._sink_max_size += correction
+        return self.sink_max_size
             # if perf_diff >= 0.3 and perf_diff < 0.5 and self.max_size >= 100:
             #     self.MAX_SIZE_DEFAULT = self.max_size + 100
             # elif perf_diff >= 0.5 and self.max_size >= 1000:
@@ -522,7 +525,7 @@ class postgresSink(SQLSink):
             self.MAX_SIZE_DEFAULT = self.sink_timer.counter_based_max_size()
         # else:
         #     self.logger.info("No Start so Skipped Stop")
-        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
+        self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
         # Starting Line for max_size perf counter
         self.sink_timer.start()
         
