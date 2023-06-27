@@ -291,40 +291,67 @@ class postgresConnector(SQLConnector):
         sqlalchemy.Table(table_name, meta, *columns).create(self._engine)
 
 
-class postgresSink(SQLSink):
-    """postgres target sink class."""
+class SinkTimerError:
+    """A custom exception used to report errors in use of SinkTimer class"""
 
-    connector_class = postgresConnector
 
-    MAX_SIZE_DEFAULT = 100
-    MAX_SIZE_MAX_PERF_COUNTER = 1
-    MAX_SIZE_START_TIME: float = None
-    MAX_SIZE_STOP_TIME: float = None
-    _target_table: Table = None
+class SinkTimer:
+
+    def __init__(
+        self,
+        max_size: int | None = None,
+        max_perf_counter: float = 1
+    ) -> None:
+        self._sink_max_size: int = max_size
+        self._max_perf_counter = max_perf_counter
+        self._start_time: float = None
+        self._stop_time: float = None
+        self._lap_time: float = None
+    
+    @property
+    def sink_max_size(self):
+        return self._sink_max_size
+    
+    @property
+    def max_perf_counter(self):
+        return self._max_perf_counter
 
     @property
-    def target_table(self):
-        return self._target_table
+    def start_time(self):
+        return self._start_time
 
     @property
-    def set_start_time(self):
-        self.MAX_SIZE_START_TIME = time.perf_counter()
+    def stop_time(self):
+        return self._stop_time
 
     @property
-    def set_stop_time(self):
-        self.MAX_SIZE_STOP_TIME = time.perf_counter()
-
+    def lap_time(self):
+        return self._lap_time
+    
     @property
-    def max_size_perf_counter(self) -> float:
-        perf_counter: float = self.MAX_SIZE_MAX_PERF_COUNTER
-        if self.MAX_SIZE_STOP_TIME and self.MAX_SIZE_START_TIME:
-            perf_counter: float = self.MAX_SIZE_STOP_TIME - self.MAX_SIZE_START_TIME
+    def perf_diff(self) -> float:
+        if self._lap_time:
+            return self._max_perf_counter - self._lap_time
 
-        return perf_counter
+    def start(self) -> None:
+        """Start a new timer"""
+        if self._start_time is not None:
+            raise SinkTimerError(f"Timer is running. Use .stop() to stop it")
 
-    def counter_based_max_size(self):
-        max_perf_counter = self.MAX_SIZE_MAX_PERF_COUNTER
-        perf_diff = max_perf_counter - self.max_size_perf_counter
+        self._start_time = time.perf_counter()
+
+    def stop(self) -> None:
+        """Stop the timer, and report the elapsed time"""
+        if self._start_time is None:
+            raise SinkTimerError(f"Timer is not running. Use .start() to start it")
+        
+        self._stop_time = time.perf_counter()
+        self._lap_time = self._stop_time - self._start_time
+        self._start_time = None
+
+    def counter_based_max_size(self) -> int:
+        # max_perf_counter = self.MAX_SIZE_MAX_PERF_COUNTER
+        # perf_diff = max_perf_counter - self.max_size_perf_counter
         # logger for testing remove later start
         # self.logger.info(f"The MAX_SIZE_START_TIME {self.MAX_SIZE_START_TIME}")
         # self.logger.info(f"The MAX_SIZE_STOP_TIME {self.MAX_SIZE_STOP_TIME}")
@@ -332,29 +359,48 @@ class postgresSink(SQLSink):
         # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
         # self.logger.info(f"The pref_diff is: {perf_diff}")
         # logger for testing remove later ended
-        if perf_diff < -1.0*(max_perf_counter * 0.25):
-            if self.max_size >= 15000:
-                self.MAX_SIZE_DEFAULT = self.max_size - 5000
-            if self.max_size >= 10000:
-                self.MAX_SIZE_DEFAULT = self.max_size - 1000
-            elif self.max_size >= 1000:
-                self.MAX_SIZE_DEFAULT = self.max_size - 100
-            elif self.max_size > 10:
-                self.MAX_SIZE_DEFAULT = self.max_size - 10
-        if perf_diff >= (max_perf_counter * 0.33) and self.max_size < 100000:
-            if self.max_size >= 10000:
-                self.MAX_SIZE_DEFAULT = self.max_size + 10000
-            if self.max_size >= 1000:
-                self.MAX_SIZE_DEFAULT = self.max_size + 1000
-            elif self.max_size >= 100:
-                self.MAX_SIZE_DEFAULT = self.max_size + 100
-            elif self.max_size >= 10:
-                self.MAX_SIZE_DEFAULT = self.max_size + 10
+        if self.perf_diff < -1.0*(self.max_perf_counter * 0.25):
+            if self.sink_max_size >= 15000:
+                return self.sink_max_size - 5000
+            if self.sink_max_size >= 10000:
+                return  self.sink_max_size - 1000
+            elif self.sink_max_size >= 1000:
+                return  self.sink_max_size - 100
+            elif self.sink_max_size > 10:
+                return self.sink_max_size - 10
+        if self.perf_diff >= (self.max_perf_counter * 0.5) and self.sink_max_size < 100000:
+            if self.sink_max_size >= 10000:
+                return self.sink_max_size + 10000
+            if self.sink_max_size >= 1000:
+                return self.sink_max_size + 1000
+            elif self.sink_max_size >= 100:
+                return self.sink_max_size + 100
+            elif self.sink_max_size >= 10:
+                return self.sink_max_size + 10
             # if perf_diff >= 0.3 and perf_diff < 0.5 and self.max_size >= 100:
             #     self.MAX_SIZE_DEFAULT = self.max_size + 100
             # elif perf_diff >= 0.5 and self.max_size >= 1000:
             #     self.MAX_SIZE_DEFAULT = self.max_size + 5000
-        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
+        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")    
+
+
+class postgresSink(SQLSink):
+    """postgres target sink class."""
+
+    connector_class = postgresConnector
+
+    MAX_SIZE_DEFAULT = 100
+
+    _target_table: Table = None
+    _sink_timer = SinkTimer(MAX_SIZE_DEFAULT,1)
+    
+    @property
+    def target_table(self):
+        return self._target_table
+
+    @property
+    def sink_timer(self):
+        return self._sink_timer
 
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
@@ -471,14 +517,14 @@ class postgresSink(SQLSink):
             self.logger.info(error)
 
         # Finish Line for max_size perf counter
-        if self.MAX_SIZE_START_TIME:
-            self.set_stop_time
-            self.counter_based_max_size()
+        if self.sink_timer.start_time is not None:
+            self.sink_timer.stop()
+            self.MAX_SIZE_DEFAULT = self.sink_timer.counter_based_max_size()
         # else:
         #     self.logger.info("No Start so Skipped Stop")
         # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
         # Starting Line for max_size perf counter
-        self.set_start_time
+        self.sink_timer.start()
         
         if isinstance(records, list):
             return len(records)  # If list, we can quickly return record count.
