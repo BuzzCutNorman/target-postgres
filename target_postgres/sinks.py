@@ -234,6 +234,62 @@ class postgresConnector(SQLConnector):
 
         return SQLConnector.to_sql_type(jsonschema_type)
 
+    def create_empty_table(
+        self,
+        full_table_name: str,
+        schema: dict,
+        primary_keys: list[str] | None = None,
+        partition_keys: list[str] | None = None,
+        as_temp_table: bool = False,  # noqa: FBT001, FBT002
+    ) -> None:
+        """Create an empty target table.
+
+        Args:
+            full_table_name: the target table name.
+            schema: the JSON schema for the new table.
+            primary_keys: list of key properties.
+            partition_keys: list of partition keys.
+            as_temp_table: True to create a temp table.
+
+        Raises:
+            NotImplementedError: if temp tables are unsupported and as_temp_table=True.
+            RuntimeError: if a variant schema is passed with no properties defined.
+        """
+        if as_temp_table:
+            msg = "Temporary tables are not supported."
+            raise NotImplementedError(msg)
+
+        _ = partition_keys  # Not supported in generic implementation.
+
+        _, schema_name, table_name = self.parse_full_table_name(full_table_name)
+        meta = sqlalchemy.MetaData(schema=schema_name)
+        columns: list[sqlalchemy.Column] = []
+        primary_keys = primary_keys or []
+        try:
+            properties: dict = schema["properties"]
+        except KeyError as e:
+            msg = f"Schema for '{full_table_name}' does not define properties: {schema}"
+            raise RuntimeError(msg) from e
+        for property_name, property_jsonschema in properties.items():
+            if property_name in primary_keys:
+                columns.append(
+                    sqlalchemy.Column(
+                        property_name,
+                        self.to_sql_type(property_jsonschema),
+                        primary_key=True,
+                        autoincrement=False,
+                    )
+                )
+            else:
+                columns.append(
+                    sqlalchemy.Column(
+                        property_name,
+                        self.to_sql_type(property_jsonschema),
+                    ),
+                )
+
+        sqlalchemy.Table(table_name, meta, *columns).create(self._engine)
+
 
 class postgresSink(SQLSink):
     """postgres target sink class."""
@@ -244,11 +300,61 @@ class postgresSink(SQLSink):
     MAX_SIZE_MAX_PERF_COUNTER = 1
     MAX_SIZE_START_TIME: float = None
     MAX_SIZE_STOP_TIME: float = None
-    TARGET_TABLE: Table = None
+    _target_table: Table = None
 
     @property
     def target_table(self):
-        return self.TARGET_TABLE
+        return self._target_table
+
+    @property
+    def set_start_time(self):
+        self.MAX_SIZE_START_TIME = time.perf_counter()
+
+    @property
+    def set_stop_time(self):
+        self.MAX_SIZE_STOP_TIME = time.perf_counter()
+
+    @property
+    def max_size_perf_counter(self) -> float:
+        perf_counter: float = self.MAX_SIZE_MAX_PERF_COUNTER
+        if self.MAX_SIZE_STOP_TIME and self.MAX_SIZE_START_TIME:
+            perf_counter: float = self.MAX_SIZE_STOP_TIME - self.MAX_SIZE_START_TIME
+
+        return perf_counter
+
+    def counter_based_max_size(self):
+        max_perf_counter = self.MAX_SIZE_MAX_PERF_COUNTER
+        perf_diff = max_perf_counter - self.max_size_perf_counter
+        # logger for testing remove later start
+        # self.logger.info(f"The MAX_SIZE_START_TIME {self.MAX_SIZE_START_TIME}")
+        # self.logger.info(f"The MAX_SIZE_STOP_TIME {self.MAX_SIZE_STOP_TIME}")
+        # self.logger.info(f"This was the total elapsed time: {self.max_size_perf_counter:0.2f} seconds")
+        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
+        # self.logger.info(f"The pref_diff is: {perf_diff}")
+        # logger for testing remove later ended
+        if perf_diff < -1.0*(max_perf_counter * 0.25):
+            if self.max_size >= 15000:
+                self.MAX_SIZE_DEFAULT = self.max_size - 5000
+            if self.max_size >= 10000:
+                self.MAX_SIZE_DEFAULT = self.max_size - 1000
+            elif self.max_size >= 1000:
+                self.MAX_SIZE_DEFAULT = self.max_size - 100
+            elif self.max_size > 10:
+                self.MAX_SIZE_DEFAULT = self.max_size - 10
+        if perf_diff >= (max_perf_counter * 0.33) and self.max_size < 100000:
+            if self.max_size >= 10000:
+                self.MAX_SIZE_DEFAULT = self.max_size + 10000
+            if self.max_size >= 1000:
+                self.MAX_SIZE_DEFAULT = self.max_size + 1000
+            elif self.max_size >= 100:
+                self.MAX_SIZE_DEFAULT = self.max_size + 100
+            elif self.max_size >= 10:
+                self.MAX_SIZE_DEFAULT = self.max_size + 10
+            # if perf_diff >= 0.3 and perf_diff < 0.5 and self.max_size >= 100:
+            #     self.MAX_SIZE_DEFAULT = self.max_size + 100
+            # elif perf_diff >= 0.5 and self.max_size >= 1000:
+            #     self.MAX_SIZE_DEFAULT = self.max_size + 5000
+        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
 
     @property
     def set_start_time(self):
@@ -341,17 +447,18 @@ class postgresSink(SQLSink):
         properties: dict = self.schema.get('properties')
 
         for key, value in record.items():
-            # Get the Item/Column property
-            property_schema: dict = properties.get(key)
-            # PostgreSQL does not filter out Null characters
-            # presence of these characters will cause
-            # the target to fail out
-            if isinstance(value, str) and '\x00' in value:
-                record.update({key: value.replace('\x00', '')})
-                self.logger.info("Removed Null Character(s) From a Record")
-            # Decode base64 binary fields in record
-            if property_schema.get('contentEncoding') == 'base64':
-                record.update({key: b64decode(value)})
+            if value is not None:
+                # Get the Item/Column property
+                property_schema: dict = properties.get(key)
+                # PostgreSQL does not filter out Null characters
+                # presence of these characters will cause
+                # the target to fail out
+                if isinstance(value, str) and '\x00' in value:
+                    record.update({key: value.replace('\x00', '')})
+                    self.logger.info("Removed Null Character(s) From a Record")
+                # Decode base64 binary fields in record
+                if property_schema.get('contentEncoding') == 'base64':
+                    record.update({key: b64decode(value)})
 
         return record
 
@@ -368,7 +475,7 @@ class postgresSink(SQLSink):
         # all the info about the table from the target server
         table: Table = Table(table_name, meta, autoload=True, autoload_with=self.connector._engine, schema=schema_name)
 
-        self.TARGET_TABLE = table
+        self._target_table = table
 
     def bulk_insert_records(
         self,
