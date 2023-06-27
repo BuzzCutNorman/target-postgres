@@ -356,56 +356,6 @@ class postgresSink(SQLSink):
             #     self.MAX_SIZE_DEFAULT = self.max_size + 5000
         # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
 
-    @property
-    def set_start_time(self):
-        self.MAX_SIZE_START_TIME = time.perf_counter()
-
-    @property
-    def set_stop_time(self):
-        self.MAX_SIZE_STOP_TIME = time.perf_counter()
-
-    @property
-    def max_size_perf_counter(self) -> float:
-        perf_counter: float = self.MAX_SIZE_MAX_PERF_COUNTER
-        if self.MAX_SIZE_STOP_TIME and self.MAX_SIZE_START_TIME:
-            perf_counter: float = self.MAX_SIZE_STOP_TIME - self.MAX_SIZE_START_TIME
-
-        return perf_counter
-
-    def counter_based_max_size(self):
-        max_perf_counter = self.MAX_SIZE_MAX_PERF_COUNTER
-        perf_diff = max_perf_counter - self.max_size_perf_counter
-        # logger for testing remove later start
-        # self.logger.info(f"The MAX_SIZE_START_TIME {self.MAX_SIZE_START_TIME}")
-        # self.logger.info(f"The MAX_SIZE_STOP_TIME {self.MAX_SIZE_STOP_TIME}")
-        # self.logger.info(f"This was the total elapsed time: {self.max_size_perf_counter:0.2f} seconds")
-        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
-        # self.logger.info(f"The pref_diff is: {perf_diff}")
-        # logger for testing remove later ended
-        if perf_diff < -1.0*(max_perf_counter * 0.25):
-            if self.max_size >= 15000:
-                self.MAX_SIZE_DEFAULT = self.max_size - 5000
-            if self.max_size >= 10000:
-                self.MAX_SIZE_DEFAULT = self.max_size - 1000
-            elif self.max_size >= 1000:
-                self.MAX_SIZE_DEFAULT = self.max_size - 100
-            elif self.max_size > 10:
-                self.MAX_SIZE_DEFAULT = self.max_size - 10
-        if perf_diff >= (max_perf_counter * 0.33) and self.max_size < 100000:
-            if self.max_size >= 10000:
-                self.MAX_SIZE_DEFAULT = self.max_size + 10000
-            if self.max_size >= 1000:
-                self.MAX_SIZE_DEFAULT = self.max_size + 1000
-            elif self.max_size >= 100:
-                self.MAX_SIZE_DEFAULT = self.max_size + 100
-            elif self.max_size >= 10:
-                self.MAX_SIZE_DEFAULT = self.max_size + 10
-            # if perf_diff >= 0.3 and perf_diff < 0.5 and self.max_size >= 100:
-            #     self.MAX_SIZE_DEFAULT = self.max_size + 100
-            # elif perf_diff >= 0.5 and self.max_size >= 1000:
-            #     self.MAX_SIZE_DEFAULT = self.max_size + 5000
-        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
-
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
 
