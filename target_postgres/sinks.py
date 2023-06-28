@@ -4,7 +4,6 @@ from __future__ import annotations
 from base64 import b64decode
 from typing import Any, Dict, cast, Iterable, Iterator, Optional
 from contextlib import contextmanager
-import time
 
 import sqlalchemy
 from sqlalchemy import Table, MetaData, exc, types, engine_from_config
@@ -14,6 +13,8 @@ from sqlalchemy.engine.url import URL
 
 from singer_sdk.sinks import SQLSink
 from singer_sdk.connectors import SQLConnector
+
+from target_postgres.perftimer import BatchPerfTimer
 
 
 class postgresConnector(SQLConnector):
@@ -291,102 +292,6 @@ class postgresConnector(SQLConnector):
         sqlalchemy.Table(table_name, meta, *columns).create(self._engine)
 
 
-class SinkTimerError:
-    """A custom exception used to report errors in use of SinkTimer class"""
-
-
-class SinkTimer:
-
-    def __init__(
-        self,
-        max_size: int | None = None,
-        max_perf_counter: float = 1
-    ) -> None:
-        self._sink_max_size: int = max_size
-        self._max_perf_counter = max_perf_counter
-        self._start_time: float = None
-        self._stop_time: float = None
-        self._lap_time: float = None
-    
-    @property
-    def sink_max_size(self):
-        return self._sink_max_size
-    
-    @property
-    def max_perf_counter(self):
-        return self._max_perf_counter
-
-    @property
-    def start_time(self):
-        return self._start_time
-
-    @property
-    def stop_time(self):
-        return self._stop_time
-
-    @property
-    def lap_time(self):
-        return self._lap_time
-    
-    @property
-    def perf_diff(self) -> float:
-        if self._lap_time:
-            return self._max_perf_counter - self._lap_time
-
-    def start(self) -> None:
-        """Start a new timer"""
-        if self._start_time is not None:
-            raise SinkTimerError(f"Timer is running. Use .stop() to stop it")
-
-        self._start_time = time.perf_counter()
-
-    def stop(self) -> None:
-        """Stop the timer, and report the elapsed time"""
-        if self._start_time is None:
-            raise SinkTimerError(f"Timer is not running. Use .start() to start it")
-        
-        self._stop_time = time.perf_counter()
-        self._lap_time = self._stop_time - self._start_time
-        self._start_time = None
-
-    def counter_based_max_size(self) -> int:
-        # max_perf_counter = self.MAX_SIZE_MAX_PERF_COUNTER
-        # perf_diff = max_perf_counter - self.max_size_perf_counter
-        # logger for testing remove later start
-        # self.logger.info(f"The MAX_SIZE_START_TIME {self.MAX_SIZE_START_TIME}")
-        # self.logger.info(f"The MAX_SIZE_STOP_TIME {self.MAX_SIZE_STOP_TIME}")
-        # self.logger.info(f"This was the total elapsed time: {self.max_size_perf_counter:0.2f} seconds")
-        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
-        # self.logger.info(f"The pref_diff is: {perf_diff}")
-        # logger for testing remove later ended
-        correction = 0
-        if self.perf_diff < -1.0*(self.max_perf_counter * 0.25):
-            if self.sink_max_size >= 15000:
-                correction = -5000
-            if self.sink_max_size >= 10000:
-                correction = -1000
-            elif self.sink_max_size >= 1000:
-                correction = -100
-            elif self.sink_max_size > 10:
-                correction = 10
-        if self.perf_diff >= (self.max_perf_counter * 0.5) and self.sink_max_size < 100000:
-            if self.sink_max_size >= 10000:
-                correction = 10000
-            if self.sink_max_size >= 1000:
-                correction = 1000
-            elif self.sink_max_size >= 100:
-                correction = 100
-            elif self.sink_max_size >= 10:
-                correction = 10
-        self._sink_max_size += correction
-        return self.sink_max_size
-            # if perf_diff >= 0.3 and perf_diff < 0.5 and self.max_size >= 100:
-            #     self.MAX_SIZE_DEFAULT = self.max_size + 100
-            # elif perf_diff >= 0.5 and self.max_size >= 1000:
-            #     self.MAX_SIZE_DEFAULT = self.max_size + 5000
-        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")    
-
-
 class postgresSink(SQLSink):
     """postgres target sink class."""
 
@@ -395,7 +300,7 @@ class postgresSink(SQLSink):
     MAX_SIZE_DEFAULT = 100
 
     _target_table: Table = None
-    _sink_timer = SinkTimer(MAX_SIZE_DEFAULT,1)
+    _sink_timer: BatchPerfTimer = BatchPerfTimer(MAX_SIZE_DEFAULT,1)
     
     @property
     def target_table(self):
@@ -523,9 +428,9 @@ class postgresSink(SQLSink):
         if self.sink_timer.start_time is not None:
             self.sink_timer.stop()
             self.MAX_SIZE_DEFAULT = self.sink_timer.counter_based_max_size()
-        # else:
-        #     self.logger.info("No Start so Skipped Stop")
+
         self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
+
         # Starting Line for max_size perf counter
         self.sink_timer.start()
         
