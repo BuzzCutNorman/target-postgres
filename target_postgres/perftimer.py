@@ -56,37 +56,40 @@ class BatchPerfTimer(PerfTimer):
         self._sink_max_size: int = max_size
         self._max_perf_counter = max_perf_counter
     
+    # The max size a bulk insert can be
     SINK_MAX_SIZE_CELING: int = 100000    
     
+    # The current MAX_SIZE_DEFAULT
     @property
     def sink_max_size(self):
         return self._sink_max_size
     
+    # How many seconds can pass before a insert
     @property
     def max_perf_counter(self):
         return self._max_perf_counter
     
+    # The mininum negative variance allowed
+    # 1/3 worse than wanted
     @property
     def perf_diff_allowed_min(self):
         return -1.0*(self.max_perf_counter * 0.33)
     
+    # The maximum postive variace allowed
+    # 3/4 better than wanted
     @property
     def perf_diff_allowed_max(self):
         return self.max_perf_counter * 0.75
     
+    # The difference between the wanted elaped time before an insert
+    # and the actual time of the last insert. 
     @property
     def perf_diff(self) -> float:
         if self._lap_time:
-            return self._max_perf_counter - self._lap_time
+            return self.max_perf_counter - self.lap_time
 
+    # Determine if a correction is needed and how much that correction should be
     def counter_based_max_size(self) -> int:
-        # logger for testing remove later start
-        # self.logger.info(f"The MAX_SIZE_START_TIME {self.MAX_SIZE_START_TIME}")
-        # self.logger.info(f"The MAX_SIZE_STOP_TIME {self.MAX_SIZE_STOP_TIME}")
-        # self.logger.info(f"This was the total elapsed time: {self.max_size_perf_counter:0.2f} seconds")
-        # self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
-        # self.logger.info(f"The pref_diff is: {perf_diff}")
-        # logger for testing remove later ended
         correction = 0
         if self.perf_diff < self.perf_diff_allowed_min:
             if self.sink_max_size >= 15000:
