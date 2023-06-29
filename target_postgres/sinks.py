@@ -14,6 +14,8 @@ from sqlalchemy.engine.url import URL
 from singer_sdk.sinks import SQLSink
 from singer_sdk.connectors import SQLConnector
 
+from target_postgres.perftimer import BatchPerfTimer
+
 
 class postgresConnector(SQLConnector):
     """The connector for postgres.
@@ -82,6 +84,8 @@ class postgresConnector(SQLConnector):
         eng_config = {
             f"{eng_prefix}url": self.sqlalchemy_url,
             f"{eng_prefix}echo": "False"
+            # f"{eng_prefix}executemany_values_page_size": 10000,
+            # f"{eng_prefix}executemany_batch_page_size": 500
         }
 
         if self.config.get('sqlalchemy_eng_params'):
@@ -293,11 +297,18 @@ class postgresSink(SQLSink):
 
     connector_class = postgresConnector
 
-    _target_table: Table = None
+    MAX_SIZE_DEFAULT = 100
 
+    _target_table: Table = None
+    _sink_timer: BatchPerfTimer = BatchPerfTimer(MAX_SIZE_DEFAULT,1)
+    
     @property
     def target_table(self):
         return self._target_table
+
+    @property
+    def sink_timer(self):
+        return self._sink_timer
 
     def conform_name(self, name: str, object_type: Optional[str] = None) -> str:
         """Conform a stream property name to one suitable for the target system.
@@ -334,6 +345,8 @@ class postgresSink(SQLSink):
         Returns:
             A new, processed record.
         """
+        # Starting line for max_size perf counter
+        # self.set_start_time
         # Get the Stream Properties Dictornary from the Schema
         properties: dict = self.schema.get('properties')
 
@@ -411,6 +424,16 @@ class postgresSink(SQLSink):
             error = str(e.__dict__['orig'])
             self.logger.info(error)
 
+        # Finish Line for max_size perf counter
+        if self.sink_timer.start_time is not None:
+            self.sink_timer.stop()
+            self.MAX_SIZE_DEFAULT = self.sink_timer.counter_based_max_size()
+
+        self.logger.info(f"MAX_SIZE_DEFAULT: {self.max_size}")
+
+        # Starting Line for max_size perf counter
+        self.sink_timer.start()
+        
         if isinstance(records, list):
             return len(records)  # If list, we can quickly return record count.
 

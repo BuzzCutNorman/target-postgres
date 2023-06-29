@@ -15,6 +15,8 @@ from target_postgres.sinks import (
 class Targetpostgres(SQLTarget):
     """Sample target for postgres."""
 
+    _MAX_RECORD_AGE_IN_MINUTES: float = 1000000.0
+
     name = "target-postgres"
     default_sink_class = postgresSink
     default_connector_class = postgresConnector
