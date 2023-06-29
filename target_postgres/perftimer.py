@@ -1,4 +1,4 @@
-"""performace timers which deal with dynamic timing"""
+"""performace timers which deal with dynamic timing events"""
 
 from __future__ import annotations
 import time
@@ -27,7 +27,7 @@ class PerfTimer:
         return self._lap_time
 
     def start(self) -> None:
-        """Start a new timer"""
+        """Start the timer"""
         
         if self._start_time is not None:
             raise PerfTimerError(f"Timer is running. Use .stop() to stop it")
@@ -35,7 +35,7 @@ class PerfTimer:
         self._start_time = time.perf_counter()
 
     def stop(self) -> None:
-        """Stop the timer, and report the elapsed time"""
+        """Stop the timer, stores the elapsed time in _lap_time, and the resets _start_time"""
         
         if self._start_time is None:
             raise PerfTimerError(f"Timer is not running. Use .start() to start it")
@@ -46,7 +46,7 @@ class PerfTimer:
 
 
 class BatchPerfTimer(PerfTimer):
-    """The Performance Timer for Target Dynamic Batching"""
+    """The Performance Timer for Target Dynamic Bluk Inserts"""
 
     def __init__(
         self,
@@ -56,40 +56,41 @@ class BatchPerfTimer(PerfTimer):
         self._sink_max_size: int = max_size
         self._max_perf_counter = max_perf_counter
     
-    # The max size a bulk insert can be
+
     SINK_MAX_SIZE_CELING: int = 100000    
+    """The max size a bulk insert can be"""
     
-    # The current MAX_SIZE_DEFAULT
     @property
     def sink_max_size(self):
+        """The current MAX_SIZE_DEFAULT"""
         return self._sink_max_size
     
-    # How many seconds can pass before a insert
     @property
     def max_perf_counter(self):
+        """How many seconds can pass before a insert"""
         return self._max_perf_counter
     
-    # The mininum negative variance allowed
-    # 1/3 worse than wanted
     @property
     def perf_diff_allowed_min(self):
+        """The mininum negative variance allowed, 1/3 worse than wanted"""
         return -1.0*(self.max_perf_counter * 0.33)
     
-    # The maximum postive variace allowed
-    # 3/4 better than wanted
     @property
     def perf_diff_allowed_max(self):
+        """The maximum postive variace allowed, # 3/4 better than wanted"""
         return self.max_perf_counter * 0.75
     
-    # The difference between the wanted elaped time before an insert
-    # and the actual time of the last insert. 
     @property
     def perf_diff(self) -> float:
+        """The difference between the wanted elaped time before an insert
+            and the actual time of the last insert. 
+        """
         if self._lap_time:
             return self.max_perf_counter - self.lap_time
 
-    # Determine if a correction is needed and how much that correction should be
     def counter_based_max_size(self) -> int:
+        """Determine if a correction is needed and how much that correction should be
+        then return the correct sink_max_size"""
         correction = 0
         if self.perf_diff < self.perf_diff_allowed_min:
             if self.sink_max_size >= 15000:
