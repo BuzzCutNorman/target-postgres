@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 from base64 import b64decode
-from typing import Any, Dict, cast, Iterable, Iterator, Optional
 from contextlib import contextmanager
+from decimal import Decimal
+from typing import Any, Dict, cast, Iterable, Iterator, Optional
+
 
 import sqlalchemy
 from sqlalchemy import Table, MetaData, exc, types, engine_from_config
@@ -107,6 +109,7 @@ class postgresConnector(SQLConnector):
         Returns:
             The SQLAlchemy type representation of the data type.
         """
+        self.logger.info(f"json schema type: {jsonschema_type}")
         if self.config.get('hd_jsonschema_types', False):
             return self.hd_to_sql_type(jsonschema_type)
         else:
@@ -204,21 +207,21 @@ class postgresConnector(SQLConnector):
             maximum = jsonschema_type.get('maximum')
             # There is something that is traucating and rounding this number
             # if (minimum == -922337203685477.5808) and (maximum == 922337203685477.5807):
-            if (minimum == -922337203685477.6) and (maximum == 922337203685477.6):
+            if (minimum == Decimal('-922337203685477.6')) and (maximum == Decimal('922337203685477.6')):
                 return cast(sqlalchemy.types.TypeEngine, postgresql.MONEY())
-            elif (minimum == -214748.3648) and (maximum == 214748.3647):
+            elif (minimum == Decimal('-214748.3648')) and (maximum == Decimal('214748.3647')):
                 # This is a MSSQL only DataType of SMALLMONEY
                 return cast(sqlalchemy.types.TypeEngine, postgresql.MONEY())
-            elif (minimum == -1.79e308) and (maximum == 1.79e308):
+            elif (minimum == Decimal('-1.79e308')) and (maximum == Decimal('1.79e308')):
                 return cast(sqlalchemy.types.TypeEngine, postgresql.FLOAT())
-            elif (minimum == -3.40e38) and (maximum == 3.40e38):
+            elif (minimum == Decimal('-3.40e38')) and (maximum == Decimal('3.40e38')):
                 return cast(sqlalchemy.types.TypeEngine, postgresql.REAL())
             else:
                 # Python will start using scientific notition for float values.
                 # A check for 'e+' in the string of the value is what I key on.
                 # If it is no present we can count the number of '9' chars.
                 # If it is present we need to do a little more to translate.
-                if 'e+' not in str(maximum):
+                if 'e+' not in str(maximum).lower():
                     precision = str(maximum).count('9')
                     scale = precision - str(maximum).rfind('.')
                     return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
@@ -226,7 +229,7 @@ class postgresConnector(SQLConnector):
                     precision_start = str(maximum).rfind('+')
                     precision = int(str(maximum)[precision_start:])
                     scale_start = str(maximum).find('.') + 1
-                    scale_end = str(maximum).find('e')
+                    scale_end = str(maximum).lower().find('e')
                     scale = scale_end - scale_start
                     return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
 
