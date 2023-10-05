@@ -4,6 +4,7 @@ from __future__ import annotations
 from base64 import b64decode
 from contextlib import contextmanager
 from decimal import Decimal
+from jsonschema import Draft7Validator
 from typing import Any, Dict, cast, Iterable, Iterator, Optional
 
 
