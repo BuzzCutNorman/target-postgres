@@ -368,7 +368,7 @@ class postgresSink(SQLSink):
 
         # This is the Table instance that will autoload
         # all the info about the table from the target server
-        table: Table = Table(table_name, meta, autoload=True, autoload_with=self.connector._engine, schema=schema_name)
+        table: Table = Table(table_name, meta, autoload_with=self.connector._engine, schema=schema_name)
 
         self._target_table = table
 
