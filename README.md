@@ -4,9 +4,7 @@
 
 Build with the [Meltano Target SDK](https://sdk.meltano.com).
 ### Whats New 🛳️🎉
-**2023-06-14 Enhancement:**  The behavior of when a new postgresConnector class is generated has been changed.  When the Target gets its first Schema message a Target level connector is generated.  This connector is then passed on to Sinks as they are initialized.  This mean instead of a database session per Sink there is a smaller pool of session being utilized over and over. Database session counts are avaiable in the pgAdmin Dashboard tab for the target database.  I couldn't have added this without the SQLConnector refactoring work @qbatten did in SDK 0.20.0.  The inspiration for this enhancement came from comments made by @kgpayne. So a big Thanks 🙏 to both of them.
-
-**2023-06-05 Upgraded to Meltano Singer-SDK 0.27.0:**  Reduced the amount of times the target-postgres asks PostgreSQL for target table info by adding a TARGET_TABLE constant variable.  This reduced the amount of rollbacks occuring during a transfer.
+**2023-10-16 Upgraded to Meltano Singer-SDK 0.32.0:** SQLAlchemy 2.x is main stream in this version so I took advantage of that and bumped from `1.4.x` to `2.x`.  SQLAlchemy supports `psycopg` so I added it as a dependency and you can now use it as a driver option. In the `hd_jsonschema_types` the `minimum` and `maximum` values used to define `NUMERIC` or `DECIMAL` precision and scale values were being rounded.  This caused an issue with the translation on the target side.  I leveraged scientific notation to resolve this.
 
 **2023-04-26 New HD JSON Schema Types:**  Added translations for HD JSON Schema definitions of Xml and Binary types from the buzzcutnorman `tap-mssql`.  This is Thanks🙏 to Singer-SDK 0.24.0 which allows for JSON Schema `contentMediaType` and `contentEncoding`.  Currently all Binary data types are decoded before being inserted as BYTEA.  XML types are not supported in SQLAlchemy for PostgreSQL so are they are inserted as TEXT.
 
