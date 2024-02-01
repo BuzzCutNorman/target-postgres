@@ -4,10 +4,7 @@ from __future__ import annotations
 from base64 import b64decode
 from contextlib import contextmanager
 from decimal import Decimal
-from jsonschema import Draft7Validator
 from typing import Any, Dict, cast, Iterable, Iterator, Optional
-
-from singer_sdk.target_base import Target
 
 import sqlalchemy
 from sqlalchemy import Table, MetaData, exc, types, engine_from_config
