@@ -4,6 +4,8 @@
 
 Build with the [Meltano Target SDK](https://sdk.meltano.com).
 ### Whats New 🛳️🎉
+**2024-01-31 Upgraded to Meltano Singer-SDK 0.34.1:** Happy New Year!!!🎉.  My goal was to start using tags and releases by 2024 and was pretty close.  You can now lock on a release number if you want. 
+
 **2023-10-16 Upgraded to Meltano Singer-SDK 0.32.0:** SQLAlchemy 2.x is main stream in this version so I took advantage of that and bumped from `1.4.x` to `2.x`.  SQLAlchemy supports `psycopg` so I added it as a dependency and you can now use it as a driver option. In the `hd_jsonschema_types` the `minimum` and `maximum` values used to define `NUMERIC` or `DECIMAL` precision and scale values were being rounded.  This caused an issue with the translation on the target side.  I leveraged scientific notation to resolve this.
 
 **2023-04-26 New HD JSON Schema Types:**  Added translations for HD JSON Schema definitions of Xml and Binary types from the buzzcutnorman `tap-mssql`.  This is Thanks🙏 to Singer-SDK 0.24.0 which allows for JSON Schema `contentMediaType` and `contentEncoding`.  Currently all Binary data types are decoded before being inserted as BYTEA.  XML types are not supported in SQLAlchemy for PostgreSQL so are they are inserted as TEXT.
