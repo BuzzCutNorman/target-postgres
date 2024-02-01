@@ -46,17 +46,7 @@ class postgresConnector(SQLConnector):
         Returns:
             The URL as a string.
         """
-        if config['dialect'] == "postgresql":
-            url_drivername: str = config['dialect']
-        else:
-            cls.logger.error("Invalid dialect given")
-            exit(1)
-
-        if config['driver_type'] in ["psycopg", "psycopg2", "pg8000", "asyncpg", "psycopg2cffi"]:
-            url_drivername += f"+{config['driver_type']}"
-        else:
-            cls.logger.error("Invalid driver_type given")
-            exit(1)
+        url_drivername = f"{config.get('dialect')}+{config.get('driver_type')}"
 
         config_url = URL.create(
             url_drivername,
