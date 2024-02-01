@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any, Dict, cast, Iterable, Iterator, Optional
 
-import sqlalchemy
+import sqlalchemy as sa
 from sqlalchemy import Table, MetaData, exc, types, engine_from_config
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import Engine
@@ -30,7 +30,7 @@ class postgresConnector(SQLConnector):
     allow_temp_tables: bool = True  # Whether temp tables are supported.
 
     @contextmanager
-    def _connect(self) -> Iterator[sqlalchemy.engine.Connection]:
+    def _connect(self) -> Iterator[sa.engine.Connection]:
         with self._engine.connect() as conn:
             yield conn
 
@@ -107,7 +107,7 @@ class postgresConnector(SQLConnector):
             return self.org_to_sql_type(jsonschema_type)
 
     @staticmethod
-    def org_to_sql_type(jsonschema_type: dict) -> sqlalchemy.types.TypeEngine:
+    def org_to_sql_type(jsonschema_type: dict) -> sa.types.TypeEngine:
         """Return a JSON Schema representation of the provided type.
 
         By default will call `typing.to_sql_type()`.
@@ -127,7 +127,7 @@ class postgresConnector(SQLConnector):
         # You may delete this method if overrides are not needed.
         # logger = logging.getLogger("sqlconnector")
         if jsonschema_type.get('format') == 'date-time':
-            return cast(types.TypeEngine, sqlalchemy.types.TIMESTAMP())
+            return cast(types.TypeEngine, sa.types.TIMESTAMP())
 
         return SQLConnector.to_sql_type(jsonschema_type)
 
@@ -151,25 +151,25 @@ class postgresConnector(SQLConnector):
         # JSON Strings to Postgres
         if 'string' in jsonschema_type.get('type'):
             if jsonschema_type.get("format") == "date":
-                return cast(sqlalchemy.types.TypeEngine, postgresql.DATE())
+                return cast(sa.types.TypeEngine, postgresql.DATE())
             if jsonschema_type.get("format") == "time":
-                return cast(sqlalchemy.types.TypeEngine, postgresql.TIME())
+                return cast(sa.types.TypeEngine, postgresql.TIME())
             if jsonschema_type.get("format") == "date-time":
-                return cast(sqlalchemy.types.TypeEngine, postgresql.TIMESTAMP())
+                return cast(sa.types.TypeEngine, postgresql.TIMESTAMP())
             if jsonschema_type.get("format") == "uuid":
-                return cast(sqlalchemy.types.TypeEngine, postgresql.UUID())
+                return cast(sa.types.TypeEngine, postgresql.UUID())
             if jsonschema_type.get("contentMediaType") == "application/xml":
-                return cast(sqlalchemy.types.TypeEngine, postgresql.TEXT())
+                return cast(sa.types.TypeEngine, postgresql.TEXT())
             length: int = jsonschema_type.get('maxLength')
             if jsonschema_type.get("contentEncoding") == "base64":
                 if length:
-                    return cast(sqlalchemy.types.TypeEngine, postgresql.BYTEA(length=length))
+                    return cast(sa.types.TypeEngine, postgresql.BYTEA(length=length))
                 else:
-                    return cast(sqlalchemy.types.TypeEngine, postgresql.BYTEA())
+                    return cast(sa.types.TypeEngine, postgresql.BYTEA())
             if length:
-                return cast(sqlalchemy.types.TypeEngine,  postgresql.VARCHAR(length=length))
+                return cast(sa.types.TypeEngine,  postgresql.VARCHAR(length=length))
             else:
-                return cast(sqlalchemy.types.TypeEngine, postgresql.VARCHAR())
+                return cast(sa.types.TypeEngine, postgresql.VARCHAR())
 
         # JSON Boolean to Postgres
         if 'boolean' in jsonschema_type.get('type'):
@@ -180,17 +180,17 @@ class postgresConnector(SQLConnector):
             minimum = jsonschema_type.get('minimum')
             maximum = jsonschema_type.get('maximum')
             if (minimum == -9223372036854775808) and (maximum == 9223372036854775807):
-                return cast(sqlalchemy.types.TypeEngine, postgresql.BIGINT())
+                return cast(sa.types.TypeEngine, postgresql.BIGINT())
             elif (minimum == -2147483648) and (maximum == 2147483647):
-                return cast(sqlalchemy.types.TypeEngine, postgresql.INTEGER())
+                return cast(sa.types.TypeEngine, postgresql.INTEGER())
             elif (minimum == -32768) and (maximum == 32767):
-                return cast(sqlalchemy.types.TypeEngine, postgresql.SMALLINT())
+                return cast(sa.types.TypeEngine, postgresql.SMALLINT())
             elif (minimum == 0) and (maximum == 255):
                 # This is a MSSQL only DataType of TINYINT
-                return cast(sqlalchemy.types.TypeEngine, postgresql.SMALLINT())
+                return cast(sa.types.TypeEngine, postgresql.SMALLINT())
             else:
                 precision = str(maximum).count('9')
-                return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=0))
+                return cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=0))
 
         # JSON Numbers to Postgres
         if 'number' in jsonschema_type.get('type'):
@@ -199,14 +199,14 @@ class postgresConnector(SQLConnector):
             # There is something that is traucating and rounding this number
             # if (minimum == -922337203685477.5808) and (maximum == 922337203685477.5807):
             if (minimum == Decimal('-922337203685477.6')) and (maximum == Decimal('922337203685477.6')):
-                return cast(sqlalchemy.types.TypeEngine, postgresql.MONEY())
+                return cast(sa.types.TypeEngine, postgresql.MONEY())
             elif (minimum == Decimal('-214748.3648')) and (maximum == Decimal('214748.3647')):
                 # This is a MSSQL only DataType of SMALLMONEY
-                return cast(sqlalchemy.types.TypeEngine, postgresql.MONEY())
+                return cast(sa.types.TypeEngine, postgresql.MONEY())
             elif (minimum == Decimal('-1.79e308')) and (maximum == Decimal('1.79e308')):
-                return cast(sqlalchemy.types.TypeEngine, postgresql.FLOAT())
+                return cast(sa.types.TypeEngine, postgresql.FLOAT())
             elif (minimum == Decimal('-3.40e38')) and (maximum == Decimal('3.40e38')):
-                return cast(sqlalchemy.types.TypeEngine, postgresql.REAL())
+                return cast(sa.types.TypeEngine, postgresql.REAL())
             else:
                 # Python will start using scientific notition for float values.
                 # A check for 'e+' in the string of the value is what I key on.
@@ -215,14 +215,14 @@ class postgresConnector(SQLConnector):
                 if 'e+' not in str(maximum).lower():
                     precision = str(maximum).count('9')
                     scale = precision - str(maximum).rfind('.')
-                    return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
+                    return cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
                 else:
                     precision_start = str(maximum).rfind('+')
                     precision = int(str(maximum)[precision_start:])
                     scale_start = str(maximum).find('.') + 1
                     scale_end = str(maximum).lower().find('e')
                     scale = scale_end - scale_start
-                    return cast(sqlalchemy.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
+                    return cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
 
         return SQLConnector.to_sql_type(jsonschema_type)
 
@@ -254,8 +254,8 @@ class postgresConnector(SQLConnector):
         _ = partition_keys  # Not supported in generic implementation.
 
         _, schema_name, table_name = self.parse_full_table_name(full_table_name)
-        meta = sqlalchemy.MetaData(schema=schema_name)
-        columns: list[sqlalchemy.Column] = []
+        meta = sa.MetaData(schema=schema_name)
+        columns: list[sa.Column] = []
         primary_keys = primary_keys or []
         try:
             properties: dict = schema["properties"]
@@ -265,7 +265,7 @@ class postgresConnector(SQLConnector):
         for property_name, property_jsonschema in properties.items():
             if property_name in primary_keys:
                 columns.append(
-                    sqlalchemy.Column(
+                    sa.Column(
                         property_name,
                         self.to_sql_type(property_jsonschema),
                         primary_key=True,
@@ -274,13 +274,13 @@ class postgresConnector(SQLConnector):
                 )
             else:
                 columns.append(
-                    sqlalchemy.Column(
+                    sa.Column(
                         property_name,
                         self.to_sql_type(property_jsonschema),
                     ),
                 )
 
-        sqlalchemy.Table(table_name, meta, *columns).create(self._engine)
+        sa.Table(table_name, meta, *columns).create(self._engine)
 
 
 class postgresSink(SQLSink):
