@@ -1598,4 +1598,4 @@ s3 = ["fs-s3fs"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8"
-content-hash = "e9657893ef58907f5e345d893635fdcfc552f20ef4c9a17fd9f6bc28b447079e"
+content-hash = "8c00a9cd23219939e188210ea0432dfc3cfd1c4dda4db2d8721f5faf69803a4e"
