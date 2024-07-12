@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from singer_sdk.target_base import SQLTarget
 from singer_sdk import typing as th
+from singer_sdk.target_base import SQLTarget
 
-from target_postgres.sinks import postgresSink
+from target_postgres.sinks import PostgresSink
 
 
 class Targetpostgres(SQLTarget):
     """Sample target for postgres."""
 
     name = "target-postgres"
-    default_sink_class = postgresSink
+    default_sink_class = PostgresSink
 
     config_jsonschema = th.PropertiesList(
         th.Property(
@@ -132,14 +132,16 @@ class Targetpostgres(SQLTarget):
                         th.Property(
                             "root",
                             th.StringType,
-                            description="the directory you want batch messages to be placed in\n"\
-                                        "example: file://test/batches",
+                            description=("the directory you want batch messages to be placed in\n"
+                                        "example: file://test/batches"
+                            )
                         ),
                         th.Property(
                             "prefix",
                             th.StringType,
-                            description="What prefix you want your messages to have\n"\
-                                        "example: test-batch-",
+                            description=("What prefix you want your messages to have\n"
+                                        "example: test-batch-"
+                            )
                         )
                     )
                 )
@@ -154,6 +156,6 @@ class Targetpostgres(SQLTarget):
         ),
     ).to_dict()
 
-    
+
 if __name__ == "__main__":
     Targetpostgres.cli()
