@@ -302,6 +302,7 @@ class PostgresSink(SQLSink):
     connector_class = PostgresConnector
 
     _target_table: Table = None
+    _insert_statement: postgresql.Insert = None
 
     @property
     def target_table(self) -> Table:
