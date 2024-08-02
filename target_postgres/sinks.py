@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, Iterator, Optional, cast
 
 import sqlalchemy as sa
 from singer_sdk.connectors import SQLConnector
+from singer_sdk.helpers.capabilities import TargetLoadMethods
 from singer_sdk.sinks import SQLSink
 from sqlalchemy import MetaData, Table, engine_from_config, exc, types
 from sqlalchemy.dialects import postgresql
