@@ -384,6 +384,7 @@ class PostgresSink(SQLSink):
         self._target_table = table
 
     def set_insert_statement(self) -> None:
+        """Populated the property _insert_statement."""
         insert_stmt = postgresql.insert(self.target_table)
         insert_stmt_skip = insert_stmt.on_conflict_do_nothing(
             constraint=self.target_table.primary_key
