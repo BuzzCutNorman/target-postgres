@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "target-postgres"
-version = "0.0.3"
+version = "0.0.4"
 description = "`target-postgres` is a Singer target for postgres, built with the Meltano Singer SDK."
 readme = "README.md"
 authors = ["Dan Norman"]
