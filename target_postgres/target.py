@@ -106,7 +106,7 @@ class Targetpostgres(SQLTarget):
                         th.Property(
                             "compression",
                             th.StringType,
-                            description="Currently the only compression options is gzip",
+                            description="Currently the only compression options is gzip",  # noqa: E501
                         )
                     )
                 ),
