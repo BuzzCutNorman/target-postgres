@@ -424,6 +424,9 @@ class PostgresSink(SQLSink):
         if self.target_table is None:
             self.set_target_table(full_table_name)
 
+        if self._insert_statement is None:
+            self.set_insert_statement()
+
         conformed_records = (
             [self.conform_record(record) for record in records]
             if isinstance(records, list)
@@ -435,7 +438,9 @@ class PostgresSink(SQLSink):
         rowcount: int = 0
         try:
             with self.connector._connect() as conn, conn.begin():  # noqa: SLF001
-                result:sa.CursorResult = conn.execute(self.target_table.insert(), conformed_records)
+                result:sa.CursorResult = conn.execute(
+                    self._insert_statement
+                    ,conformed_records)
             rowcount = result.rowcount
         except exc.SQLAlchemyError as e:
             error = str(e.__dict__["orig"])
