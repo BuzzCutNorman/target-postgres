@@ -2,11 +2,32 @@
 
 from __future__ import annotations
 
+import decimal
+import sys
+import typing as t
+
+import msgspec
 from singer_sdk import typing as th
 from singer_sdk.target_base import SQLTarget
 
 from target_postgres.sinks import PostgresSink
 
+msg_buffer = bytearray(64)
+
+def dec_hook(type: type, obj: t.Any) -> t.Any:  # noqa: ARG001, A002, ANN401
+    """Decoding type helper for non native types.
+
+    Args:
+        type: the type given
+        obj: the item to be decoded
+
+    Returns:
+        The object converted to the appropriate type, default is str.
+    """
+    return str(obj)
+
+
+decoder = msgspec.json.Decoder(dec_hook=dec_hook, float_hook=decimal.Decimal)
 
 class Targetpostgres(SQLTarget):
     """Sample target for postgres."""
@@ -140,6 +161,27 @@ class Targetpostgres(SQLTarget):
         ),
     ).to_dict()
 
+    default_input = sys.stdin.buffer
+
+    def deserialize_json(self, line: bytes) -> dict:  # noqa: PLR6301
+        """Deserialize a line of json.
+
+        Args:
+            line: A single line of json.
+
+        Returns:
+            A dictionary of the deserialized json.
+
+        Raises:
+            msgspec.DecodeError: raised if any lines are not valid json
+        """
+        try:
+            return decoder.decode(  # type: ignore[no-any-return]
+                line,
+            )
+        except msgspec.DecodeError as exc:
+            self.logger.exception("Unable to parse:\n%s", line, exc_info=exc)
+            raise
 
 if __name__ == "__main__":
     Targetpostgres.cli()
