@@ -26,7 +26,7 @@ class Targetpostgres(SQLTarget):
         th.Property(
             "driver_type",
             th.StringType,
-            description="The Python Driver you will be using to connect to the SQL server",
+            description="The Python Driver you will be using to connect to the SQL server",  # noqa: E501
             required=True,
             allowed_values=["psycopg", "psycopg2", "pg8000", "asyncpg", "psycopg2cffi"],
             default="psycopg"
@@ -45,7 +45,7 @@ class Targetpostgres(SQLTarget):
         th.Property(
             "user",
             th.StringType,
-            description="The User Account who has been granted access to the SQL Server",
+            description="The User Account who has been granted access to the SQL Server",  # noqa: E501
             required=True
         ),
         th.Property(
@@ -92,22 +92,6 @@ class Targetpostgres(SQLTarget):
             ),
             description="SQLAlchemy Engine Paramaters: executemany_mode, future"
         ),
-        # th.Property(
-        #     "sqlalchemy_url_query",
-        #     th.ObjectType(
-        #         th.Property(
-        #         "driver",
-        #         th.StringType,
-        #         description="The Driver to use when connection should match the Driver Type"
-        #         ),
-        #         th.Property(
-        #         "TrustServerCertificate",
-        #         th.StringType,
-        #         description="This is a Yes No option"
-        #         )
-        #     ),
-        #     description="SQLAlchemy URL Query options: driver, TrustServerCertificate"
-        # ),
         th.Property(
             "batch_config",
             th.ObjectType(
@@ -122,7 +106,7 @@ class Targetpostgres(SQLTarget):
                         th.Property(
                             "compression",
                             th.StringType,
-                            description="Currently the only compression options is gzip",
+                            description="Currently the only compression options is gzip",  # noqa: E501
                         )
                     )
                 ),
@@ -132,7 +116,7 @@ class Targetpostgres(SQLTarget):
                         th.Property(
                             "root",
                             th.StringType,
-                            description=("the directory you want batch messages to be placed in\n"
+                            description=("the directory you want batch messages to be placed in\n"  # noqa: E501
                                         "example: file://test/batches"
                             )
                         ),
@@ -152,7 +136,7 @@ class Targetpostgres(SQLTarget):
             "hd_jsonschema_types",
             th.BooleanType,
             default=False,
-            description="Turn on translation of Higher Defined(HD) JSON Schema types to SQL Types"
+            description="Turn on translation of Higher Defined(HD) JSON Schema types to SQL Types."  # noqa: E501
         ),
     ).to_dict()
 
