@@ -383,6 +383,23 @@ class PostgresSink(SQLSink):
 
         self._target_table = table
 
+    def set_insert_statement(self) -> None:
+        insert_stmt = postgresql.insert(self.target_table)
+        insert_stmt_skip = insert_stmt.on_conflict_do_nothing(
+            constraint=self.target_table.primary_key
+        )
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            constraint=self.target_table.primary_key
+            ,set_=self.target_table.columns
+        )
+        if self.config["load_method"] == TargetLoadMethods.UPSERT:
+            if self.target_table.primary_key:
+                self._insert_statement = upsert_stmt
+            else:
+                self._insert_statement = insert_stmt
+        else:
+            self._insert_statement = insert_stmt
+
     def bulk_insert_records(
         self,
         full_table_name: str,
