@@ -2,38 +2,23 @@
 
 from __future__ import annotations
 
-import decimal
 import sys
-import typing as t
 
-import msgspec
+from msgspec import DecodeError
 from singer_sdk import typing as th
+from singer_sdk._singerlib.exceptions import InvalidInputLine
 from singer_sdk.target_base import SQLTarget
 
-from target_postgres.sinks import PostgresSink
+from .json import deserialize_json
+from .sinks import PostgresSink
 
-msg_buffer = bytearray(64)
-
-def dec_hook(type: type, obj: t.Any) -> t.Any:  # noqa: ARG001, A002, ANN401
-    """Decoding type helper for non native types.
-
-    Args:
-        type: the type given
-        obj: the item to be decoded
-
-    Returns:
-        The object converted to the appropriate type, default is str.
-    """
-    return str(obj)
-
-
-decoder = msgspec.json.Decoder(dec_hook=dec_hook, float_hook=decimal.Decimal)
 
 class Targetpostgres(SQLTarget):
     """Sample target for postgres."""
 
     name = "target-postgres"
     default_sink_class = PostgresSink
+    default_input = sys.stdin.buffer
 
     config_jsonschema = th.PropertiesList(
         th.Property(
@@ -161,9 +146,8 @@ class Targetpostgres(SQLTarget):
         ),
     ).to_dict()
 
-    default_input = sys.stdin.buffer
 
-    def deserialize_json(self, line: bytes) -> dict:  # noqa: PLR6301
+    def deserialize_json(self, line: str) -> dict:
         """Deserialize a line of json.
 
         Args:
@@ -173,15 +157,14 @@ class Targetpostgres(SQLTarget):
             A dictionary of the deserialized json.
 
         Raises:
-            msgspec.DecodeError: raised if any lines are not valid json
+            InvalidInputLine: If the line is not valid JSON.
         """
         try:
-            return decoder.decode(  # type: ignore[no-any-return]
-                line,
-            )
-        except msgspec.DecodeError as exc:
-            self.logger.exception("Unable to parse:\n%s", line, exc_info=exc)
-            raise
+            return deserialize_json(line)
+        except DecodeError as exc:
+            self.logger.exception("Unable to parse:\n%s", line)
+            msg = f"Unable to parse line as JSON: {line}"
+            raise InvalidInputLine(msg) from exc
 
 if __name__ == "__main__":
     Targetpostgres.cli()
