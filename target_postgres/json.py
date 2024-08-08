@@ -2,7 +2,6 @@
 """Searialize to and Desearilaize from JSON via msgspec."""
 from __future__ import annotations
 
-import datetime
 import decimal
 import typing as t
 
@@ -18,7 +17,7 @@ def _default_encoding(obj: t.Any) -> t.Any:  # noqa: ANN401
     Returns:
         The encoded object.
     """
-    return obj.isoformat(sep="T") if isinstance(obj, datetime.datetime) else str(obj)
+    return str(obj)
 
 def _default_decoding(type: type, obj: t.Any) -> t.Any:  # noqa: ARG001, A002, ANN401
     """Decoding type helper for non native types.
