@@ -15,6 +15,8 @@ from sqlalchemy import MetaData, Table, engine_from_config, exc, types
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine.url import URL
 
+from .json import deserialize_json, serialize_json
+
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
 
@@ -49,6 +51,17 @@ class PostgresConnector(SQLConnector):
     allow_merge_upsert: bool = False  # Whether MERGE UPSERT is supported.
     allow_overwrite: bool = True  # Whether overwrite load method is supported.
     allow_temp_tables: bool = True  # Whether temp tables are supported.
+
+    def __init__(
+            self,
+            config: dict | None = None,
+            sqlalchemy_url: str | None = None
+        ) -> None:
+        """Class Default Init."""
+        self.deserialize_json = deserialize_json
+        self.serialize_json = serialize_json
+
+        super().__init__(config, sqlalchemy_url)
 
     @contextmanager
     def _connect(self) -> Iterator[sa.engine.Connection]:
