@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import importlib.util
+import asyncio
 import typing as t
 from base64 import b64decode
 from contextlib import contextmanager
 from decimal import Decimal
 from gzip import GzipFile
 from gzip import open as gzip_open
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional, cast
 
 import sqlalchemy as sa
@@ -389,6 +390,31 @@ class PostgresSink(SQLSink):
 
         return record
 
+    def process_batch_line(self, line) -> dict:
+        """Process a batch file record.
+
+        This processing allows for datetimes and other types to be
+        handled the same as being read from the stdout.
+
+        Args:
+            line: The batch file line to be processed.
+        """
+        record = self.preprocess_record(deserialize_json(line),{})
+        self._parse_timestamps_in_record(
+            record=record,
+            schema=self.schema,
+            treatment=self.datetime_error_treatment,
+        )
+        return record
+
+    async def cleanup_batch_files(self, file_path: Path) -> None:
+        """ASYNC function to cleanup batch files after ingestion.
+
+        Args:
+            file_path: The Path object to the file.
+        """
+        file_path.unlink()
+
     def process_batch_files(
         self,
         encoding: BaseBatchFileEncoding,
@@ -407,7 +433,9 @@ class PostgresSink(SQLSink):
         storage: StorageTarget | None = None
 
         for path in files:
+            file_path = Path(path.replace("file://",""))
             head, tail = StorageTarget.split_url(path)
+
 
             if self.batch_config:
                 storage = self.batch_config.storage
@@ -423,12 +451,15 @@ class PostgresSink(SQLSink):
                         gzip_open(file) if encoding.compression == "gzip" else file
                     )
                     context = {
-                        "records": [self.preprocess_record(deserialize_json(line),{}) for line in context_file]  # type: ignore[attr-defined]
+                        "records": [self.process_batch_line(line) for line in context_file]  # type: ignore[attr-defined]
                     }
                     self.process_batch(context)
             else:
                 msg = f"Unsupported batch encoding format: {encoding.format}"
                 raise NotImplementedError(msg)
+
+            # Delete Files Once injested.
+            asyncio.run(self.cleanup_batch_files(file_path=file_path))
 
     def set_target_table(self, full_table_name: str) -> None:
         """Populates the property _target_table."""
