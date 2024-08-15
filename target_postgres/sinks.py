@@ -10,7 +10,6 @@ from decimal import Decimal
 from gzip import GzipFile
 from gzip import open as gzip_open
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional, cast
 
 import sqlalchemy as sa
 from singer_sdk.connectors import SQLConnector
@@ -21,13 +20,12 @@ from singer_sdk.helpers._batch import (
 )
 from singer_sdk.helpers.capabilities import TargetLoadMethods
 from singer_sdk.sinks import SQLSink
-from sqlalchemy import MetaData, Table, engine_from_config, exc, types
+from sqlalchemy import exc
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.engine.url import URL
 
 from .json import deserialize_json, serialize_json
 
-if TYPE_CHECKING:
+if t.TYPE_CHECKING:
     from sqlalchemy.engine import Engine
 
 
@@ -74,7 +72,7 @@ class PostgresConnector(SQLConnector):
         super().__init__(config, sqlalchemy_url)
 
     @contextmanager
-    def _connect(self) -> Iterator[sa.engine.Connection]:
+    def _connect(self) -> t.Iterator[sa.engine.Connection]:
         with self._engine.connect() as conn:
             yield conn
 
@@ -89,7 +87,7 @@ class PostgresConnector(SQLConnector):
         """
         url_drivername = f"{config.get('dialect')}+{config.get('driver_type')}"
 
-        config_url = URL.create(
+        config_url = sa.URL.create(
             url_drivername,
             config["user"],
             config["password"],
@@ -126,7 +124,7 @@ class PostgresConnector(SQLConnector):
             for key, value in self.config["sqlalchemy_eng_params"].items():
                 eng_config.update({f"{eng_prefix}{key}": value})
 
-        return engine_from_config(eng_config, prefix=eng_prefix)
+        return sa.engine_from_config(eng_config, prefix=eng_prefix)
 
     def to_sql_type(self, jsonschema_type: dict) -> None:
         """Return a JSON Schema representation of the provided type.
@@ -168,12 +166,12 @@ class PostgresConnector(SQLConnector):
             The SQLAlchemy type representation of the data type.
         """
         if jsonschema_type.get("format") == "date-time":
-            return cast(types.TypeEngine, sa.types.TIMESTAMP())
+            return t.cast(sa.types.TypeEngine, sa.types.TIMESTAMP())
 
         return SQLConnector.to_sql_type(jsonschema_type)
 
     @staticmethod
-    def hd_to_sql_type(jsonschema_type: dict) -> types.TypeEngine:
+    def hd_to_sql_type(jsonschema_type: dict) -> sa.types.TypeEngine:
         """Return a JSON Schema representation of the provided type.
 
         By default will call `typing.to_sql_type()`.
@@ -192,43 +190,43 @@ class PostgresConnector(SQLConnector):
         # JSON Strings to Postgres
         if "string" in jsonschema_type.get("type"):
             if jsonschema_type.get("format") == "date":
-                return cast(sa.types.TypeEngine, postgresql.DATE())
+                return t.cast(sa.types.TypeEngine, postgresql.DATE())
             if jsonschema_type.get("format") == "time":
-                return cast(sa.types.TypeEngine, postgresql.TIME())
+                return t.cast(sa.types.TypeEngine, postgresql.TIME())
             if jsonschema_type.get("format") == "date-time":
-                return cast(sa.types.TypeEngine, postgresql.TIMESTAMP())
+                return t.cast(sa.types.TypeEngine, postgresql.TIMESTAMP())
             if jsonschema_type.get("format") == "uuid":
-                return cast(sa.types.TypeEngine, postgresql.UUID())
+                return t.cast(sa.types.TypeEngine, postgresql.UUID())
             if jsonschema_type.get("contentMediaType") == "application/xml":
-                return cast(sa.types.TypeEngine, postgresql.TEXT())
+                return t.cast(sa.types.TypeEngine, postgresql.TEXT())
             length: int = jsonschema_type.get("maxLength")
             if jsonschema_type.get("contentEncoding") == "base64":
                 if length:
-                    return cast(sa.types.TypeEngine, postgresql.BYTEA(length=length))
-                return cast(sa.types.TypeEngine, postgresql.BYTEA())
+                    return t.cast(sa.types.TypeEngine, postgresql.BYTEA(length=length))
+                return t.cast(sa.types.TypeEngine, postgresql.BYTEA())
             if length:
-                return cast(sa.types.TypeEngine,  postgresql.VARCHAR(length=length))
-            return cast(sa.types.TypeEngine, postgresql.VARCHAR())
+                return t.cast(sa.types.TypeEngine,  postgresql.VARCHAR(length=length))
+            return t.cast(sa.types.TypeEngine, postgresql.VARCHAR())
 
         # JSON Boolean to Postgres
         if "boolean" in jsonschema_type.get("type"):
-            return cast(types.TypeEngine, postgresql.BOOLEAN())
+            return t.cast(sa.types.TypeEngine, postgresql.BOOLEAN())
 
         # JSON Integers to Postgres
         if "integer" in jsonschema_type.get("type"):
             minimum = jsonschema_type.get("minimum")
             maximum = jsonschema_type.get("maximum")
             if (minimum == MSSQL_BIGINT_MIN) and (maximum == MSSQL_BIGINT_MAX):
-                return cast(sa.types.TypeEngine, postgresql.BIGINT())
+                return t.cast(sa.types.TypeEngine, postgresql.BIGINT())
             if (minimum == MSSQL_INT_MIN) and (maximum == MSSQL_INT_MAX):
-                return cast(sa.types.TypeEngine, postgresql.INTEGER())
+                return t.cast(sa.types.TypeEngine, postgresql.INTEGER())
             if (minimum == MSSQL_SMALLINT_MIN) and (maximum == MSSQL_SMALLINT_MAX):
-                return cast(sa.types.TypeEngine, postgresql.SMALLINT())
+                return t.cast(sa.types.TypeEngine, postgresql.SMALLINT())
             if (minimum == MSSQL_TINYINT_MIN) and (maximum == MSSQL_TINYINT_MAX):
                 # This is a MSSQL only DataType of TINYINT
-                return cast(sa.types.TypeEngine, postgresql.SMALLINT())
+                return t.cast(sa.types.TypeEngine, postgresql.SMALLINT())
             precision = str(maximum).count("9")
-            return cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=0))
+            return t.cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=0))
 
         # JSON Numbers to Postgres
         if "number" in jsonschema_type.get("type"):
@@ -237,14 +235,14 @@ class PostgresConnector(SQLConnector):
             # There is something that is traucating and rounding this number
             # if (minimum == -922337203685477.5808) and (maximum == 922337203685477.5807):
             if (minimum == MSSQL_MONEY_MIN) and (maximum == MSSQL_MONEY_MAX):
-                return cast(sa.types.TypeEngine, postgresql.MONEY())
+                return t.cast(sa.types.TypeEngine, postgresql.MONEY())
             if (minimum == MSSQL_SMALLMONEY_MIN) and (maximum == MSSQL_SMALLMONEY_MAX):
                 # This is a MSSQL only DataType of SMALLMONEY
-                return cast(sa.types.TypeEngine, postgresql.MONEY())
+                return t.cast(sa.types.TypeEngine, postgresql.MONEY())
             if (minimum == MSSQL_FLOAT_MIN) and (maximum == MSSQL_FLOAT_MAX):
-                return cast(sa.types.TypeEngine, postgresql.FLOAT())
+                return t.cast(sa.types.TypeEngine, postgresql.FLOAT())
             if (minimum == MSSQL_REAL_MIN) and (maximum == MSSQL_REAL_MAX):
-                return cast(sa.types.TypeEngine, postgresql.REAL())
+                return t.cast(sa.types.TypeEngine, postgresql.REAL())
             # Python will start using scientific notition for float values.
             # A check for 'e+' in the string of the value is what I key on.
             # If it is no present we can count the number of '9' chars.
@@ -252,13 +250,13 @@ class PostgresConnector(SQLConnector):
             if "e+" not in str(maximum).lower():
                 precision = str(maximum).count('9')
                 scale = precision - str(maximum).rfind('.')
-                return cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
+                return t.cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
             precision_start = str(maximum).rfind('+')
             precision = int(str(maximum)[precision_start:])
             scale_start = str(maximum).find('.') + 1
             scale_end = str(maximum).lower().find('e')
             scale = scale_end - scale_start
-            return cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
+            return t.cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
 
         return SQLConnector.to_sql_type(jsonschema_type)
 
@@ -324,11 +322,11 @@ class PostgresSink(SQLSink):
 
     connector_class = PostgresConnector
 
-    _target_table: Table = None
+    _target_table: sa.Table = None
     _insert_statement: postgresql.Insert = None
 
     @property
-    def target_table(self) -> Table:
+    def target_table(self) -> sa.Table:
         """Return the targeted table or `None` if not assigned yet.
 
         Returns:
@@ -469,11 +467,11 @@ class PostgresSink(SQLSink):
 
         # You also need a blank MetaData instance
         # for the Table class instance
-        meta = MetaData()
+        meta = sa.MetaData()
 
         # This is the Table instance that will autoload
         # all the info about the table from the target server
-        table: Table = Table(table_name, meta, autoload_with=self.connector._engine, schema=schema_name)
+        table: sa.Table = sa.Table(table_name, meta, autoload_with=self.connector._engine, schema=schema_name)
 
         self._target_table = table
 
@@ -499,8 +497,8 @@ class PostgresSink(SQLSink):
         self,
         full_table_name: str,
         schema: dict,
-        records: Iterable[dict[str, Any]],
-    ) -> Optional[int]:
+        records: t.Iterable[dict[str, t.Any]],
+    ) -> t.Optional[int]:
         """Bulk insert records to an existing destination table.
 
         The default implementation uses a generic SQLAlchemy bulk insert operation.
@@ -522,11 +520,7 @@ class PostgresSink(SQLSink):
         if self._insert_statement is None:
             self.set_insert_statement()
 
-        conformed_records = (
-            [self.conform_record(record) for record in records]
-            if isinstance(records, list)
-            else (self.conform_record(record) for record in records)
-        )
+        conformed_records = [self.conform_record(record) for record in records]
 
         # This is a insert based off SQLA example
         # https://docs.sqlalchemy.org/en/20/dialects/mssql.html#insert-behavior
@@ -534,8 +528,8 @@ class PostgresSink(SQLSink):
         try:
             with self.connector._connect() as conn, conn.begin():  # noqa: SLF001
                 result:sa.CursorResult = conn.execute(
-                    self._insert_statement
-                    ,conformed_records)
+                    self._insert_statement,
+                    conformed_records)
             rowcount = result.rowcount
         except exc.SQLAlchemyError as e:
             error = str(e.__dict__["orig"])
