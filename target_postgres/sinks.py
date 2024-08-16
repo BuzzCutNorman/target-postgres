@@ -372,6 +372,8 @@ class PostgresSink(SQLSink):
         # Get the Stream Properties Dictornary from the Schema
         properties: dict = self.schema.get("properties")
 
+        null_characters_removed: bool = False
+
         for key, value in record.items():
             if value is not None:
                 # Get the Item/Column property
@@ -381,10 +383,13 @@ class PostgresSink(SQLSink):
                 # the target to fail out
                 if isinstance(value, str) and "\x00" in value:
                     record.update({key: value.replace("\x00", "")})
-                    self.logger.info("Removed Null Character(s) From a Record")
+                    null_characters_removed = True
                 # Decode base64 binary fields in record
                 if property_schema.get("contentEncoding") == "base64":
                     record.update({key: b64decode(value)})
+
+        if null_characters_removed:
+            self.logger.info("Removed Null Character(s) From a Record")
 
         return record
 
