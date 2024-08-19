@@ -22,6 +22,8 @@ from singer_sdk.helpers.capabilities import TargetLoadMethods
 from singer_sdk.sinks import SQLSink
 from sqlalchemy import exc
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.schema import DropTable
 
 from .json import deserialize_json, serialize_json
 
@@ -45,6 +47,18 @@ MSSQL_FLOAT_MIN:Decimal = Decimal("-1.79e308")
 MSSQL_FLOAT_MAX:Decimal = Decimal("1.79e308")
 MSSQL_REAL_MIN:Decimal = Decimal("-3.40e38")
 MSSQL_REAL_MAX:Decimal = Decimal("3.40e38")
+
+# This was added to allow load_method: overwrite to delete all
+# of the table's dependent items. Views mainly that require the
+# table to be present.  I took the code from these sources:
+#
+# https://stackoverflow.com/questions/38678336/sqlalchemy-how-to-implement-drop-table-cascade#
+#
+# https://docs.sqlalchemy.org/en/20/core/compiler.html#changing-the-default-compilation-of-existing-constructs
+#
+@compiles(DropTable, "postgresql")
+def _compile_drop_table(element, compiler, **kwargs) -> str:
+    return f"{compiler.visit_drop_table(element)} CASCADE"
 
 
 class PostgresConnector(SQLConnector):
