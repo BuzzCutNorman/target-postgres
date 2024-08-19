@@ -4,6 +4,12 @@
 
 Build with the [Meltano Target SDK](https://sdk.meltano.com).
 ### Whats New 🛳️🎉
+**2024-08-20 msgspec and more:**  I have been working on getting a quicker JSON decoder in place for a while and thanks to Edger at Arch I am able too.  The library I switched to is [msgspec]( https://jcristharif.com/msgspec/). It is lightweight and fast.  Big Thank You 🙏 to Jim Crist-Harif for writing and maintaining `msgspec`. I also removed `pedulum` and am using phython datetime at the moment. 
+
+But wait there is more! I enabled the `upsert` and `overwrite` `load_methods`.  Upsert works only if a table has a primary key, heap tables will just be appended too.  I had to make all drop table calls be cascading in order for overwrite to work so consider yourself warned.  There be monsters 🧌 of ye own making using the overwrite method. 😁 
+
+Last but not least all batch records are pre-processed and datetimes parsed just like orginal non-batch loads.  
+
 **2024-08-01 Upgraded to Meltano Singer-SDK 0.39.0**
 
 **2024-07-15 Upgraded to Meltano Singer-SDK 0.36.1**
