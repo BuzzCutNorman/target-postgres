@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import sys
+
+from msgspec import DecodeError
 from singer_sdk import typing as th
+from singer_sdk._singerlib.exceptions import InvalidInputLine
 from singer_sdk.target_base import SQLTarget
 
-from target_postgres.sinks import PostgresSink
+from .json import deserialize_json
+from .sinks import PostgresSink
 
 
 class Targetpostgres(SQLTarget):
@@ -13,6 +18,7 @@ class Targetpostgres(SQLTarget):
 
     name = "target-postgres"
     default_sink_class = PostgresSink
+    default_input = sys.stdin.buffer
 
     config_jsonschema = th.PropertiesList(
         th.Property(
@@ -140,6 +146,25 @@ class Targetpostgres(SQLTarget):
         ),
     ).to_dict()
 
+
+    def deserialize_json(self, line: str) -> dict:
+        """Deserialize a line of json.
+
+        Args:
+            line: A single line of json.
+
+        Returns:
+            A dictionary of the deserialized json.
+
+        Raises:
+            InvalidInputLine: If the line is not valid JSON.
+        """
+        try:
+            return deserialize_json(line)
+        except DecodeError as exc:
+            self.logger.exception("Unable to parse:\n%s", line)
+            msg = f"Unable to parse line as JSON: {line}"
+            raise InvalidInputLine(msg) from exc
 
 if __name__ == "__main__":
     Targetpostgres.cli()

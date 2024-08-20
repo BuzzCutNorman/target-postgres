@@ -2,19 +2,32 @@
 
 from __future__ import annotations
 
+import asyncio
+import typing as t
 from base64 import b64decode
 from contextlib import contextmanager
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, Iterable, Iterator, Optional, cast
+from gzip import GzipFile
+from gzip import open as gzip_open
+from pathlib import Path
 
 import sqlalchemy as sa
 from singer_sdk.connectors import SQLConnector
+from singer_sdk.helpers._batch import (
+    BaseBatchFileEncoding,
+    BatchFileFormat,
+    StorageTarget,
+)
+from singer_sdk.helpers.capabilities import TargetLoadMethods
 from singer_sdk.sinks import SQLSink
-from sqlalchemy import MetaData, Table, engine_from_config, exc, types
+from sqlalchemy import exc
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.engine.url import URL
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.schema import DropTable
 
-if TYPE_CHECKING:
+from .json import deserialize_json, serialize_json
+
+if t.TYPE_CHECKING:
     from sqlalchemy.engine import Engine
 
 
@@ -35,6 +48,18 @@ MSSQL_FLOAT_MAX:Decimal = Decimal("1.79e308")
 MSSQL_REAL_MIN:Decimal = Decimal("-3.40e38")
 MSSQL_REAL_MAX:Decimal = Decimal("3.40e38")
 
+# This was added to allow load_method: overwrite to delete all
+# of the table's dependent items. Views mainly that require the
+# table to be present.  I took the code from these sources:
+#
+# https://stackoverflow.com/questions/38678336/sqlalchemy-how-to-implement-drop-table-cascade#
+#
+# https://docs.sqlalchemy.org/en/20/core/compiler.html#changing-the-default-compilation-of-existing-constructs
+#
+@compiles(DropTable, "postgresql")
+def _compile_drop_table(element, compiler, **kwargs) -> str:
+    return f"{compiler.visit_drop_table(element)} CASCADE"
+
 
 class PostgresConnector(SQLConnector):
     """The connector for postgres.
@@ -46,11 +71,22 @@ class PostgresConnector(SQLConnector):
     allow_column_rename: bool = True  # Whether RENAME COLUMN is supported.
     allow_column_alter: bool = False  # Whether altering column types is supported.
     allow_merge_upsert: bool = False  # Whether MERGE UPSERT is supported.
-    allow_overwrite: bool = False  # Whether overwrite load method is supported.
+    allow_overwrite: bool = True  # Whether overwrite load method is supported.
     allow_temp_tables: bool = True  # Whether temp tables are supported.
 
+    def __init__(
+            self,
+            config: dict | None = None,
+            sqlalchemy_url: str | None = None
+        ) -> None:
+        """Class Default Init."""
+        self.deserialize_json = deserialize_json
+        self.serialize_json = serialize_json
+
+        super().__init__(config, sqlalchemy_url)
+
     @contextmanager
-    def _connect(self) -> Iterator[sa.engine.Connection]:
+    def _connect(self) -> t.Iterator[sa.engine.Connection]:
         with self._engine.connect() as conn:
             yield conn
 
@@ -65,7 +101,7 @@ class PostgresConnector(SQLConnector):
         """
         url_drivername = f"{config.get('dialect')}+{config.get('driver_type')}"
 
-        config_url = URL.create(
+        config_url = sa.URL.create(
             url_drivername,
             config["user"],
             config["password"],
@@ -102,7 +138,7 @@ class PostgresConnector(SQLConnector):
             for key, value in self.config["sqlalchemy_eng_params"].items():
                 eng_config.update({f"{eng_prefix}{key}": value})
 
-        return engine_from_config(eng_config, prefix=eng_prefix)
+        return sa.engine_from_config(eng_config, prefix=eng_prefix)
 
     def to_sql_type(self, jsonschema_type: dict) -> None:
         """Return a JSON Schema representation of the provided type.
@@ -144,12 +180,12 @@ class PostgresConnector(SQLConnector):
             The SQLAlchemy type representation of the data type.
         """
         if jsonschema_type.get("format") == "date-time":
-            return cast(types.TypeEngine, sa.types.TIMESTAMP())
+            return t.cast(sa.types.TypeEngine, sa.types.TIMESTAMP())
 
         return SQLConnector.to_sql_type(jsonschema_type)
 
     @staticmethod
-    def hd_to_sql_type(jsonschema_type: dict) -> types.TypeEngine:
+    def hd_to_sql_type(jsonschema_type: dict) -> sa.types.TypeEngine:
         """Return a JSON Schema representation of the provided type.
 
         By default will call `typing.to_sql_type()`.
@@ -168,43 +204,43 @@ class PostgresConnector(SQLConnector):
         # JSON Strings to Postgres
         if "string" in jsonschema_type.get("type"):
             if jsonschema_type.get("format") == "date":
-                return cast(sa.types.TypeEngine, postgresql.DATE())
+                return t.cast(sa.types.TypeEngine, postgresql.DATE())
             if jsonschema_type.get("format") == "time":
-                return cast(sa.types.TypeEngine, postgresql.TIME())
+                return t.cast(sa.types.TypeEngine, postgresql.TIME())
             if jsonschema_type.get("format") == "date-time":
-                return cast(sa.types.TypeEngine, postgresql.TIMESTAMP())
+                return t.cast(sa.types.TypeEngine, postgresql.TIMESTAMP())
             if jsonschema_type.get("format") == "uuid":
-                return cast(sa.types.TypeEngine, postgresql.UUID())
+                return t.cast(sa.types.TypeEngine, postgresql.UUID())
             if jsonschema_type.get("contentMediaType") == "application/xml":
-                return cast(sa.types.TypeEngine, postgresql.TEXT())
+                return t.cast(sa.types.TypeEngine, postgresql.TEXT())
             length: int = jsonschema_type.get("maxLength")
             if jsonschema_type.get("contentEncoding") == "base64":
                 if length:
-                    return cast(sa.types.TypeEngine, postgresql.BYTEA(length=length))
-                return cast(sa.types.TypeEngine, postgresql.BYTEA())
+                    return t.cast(sa.types.TypeEngine, postgresql.BYTEA(length=length))
+                return t.cast(sa.types.TypeEngine, postgresql.BYTEA())
             if length:
-                return cast(sa.types.TypeEngine,  postgresql.VARCHAR(length=length))
-            return cast(sa.types.TypeEngine, postgresql.VARCHAR())
+                return t.cast(sa.types.TypeEngine,  postgresql.VARCHAR(length=length))
+            return t.cast(sa.types.TypeEngine, postgresql.VARCHAR())
 
         # JSON Boolean to Postgres
         if "boolean" in jsonschema_type.get("type"):
-            return cast(types.TypeEngine, postgresql.BOOLEAN())
+            return t.cast(sa.types.TypeEngine, postgresql.BOOLEAN())
 
         # JSON Integers to Postgres
         if "integer" in jsonschema_type.get("type"):
             minimum = jsonschema_type.get("minimum")
             maximum = jsonschema_type.get("maximum")
             if (minimum == MSSQL_BIGINT_MIN) and (maximum == MSSQL_BIGINT_MAX):
-                return cast(sa.types.TypeEngine, postgresql.BIGINT())
+                return t.cast(sa.types.TypeEngine, postgresql.BIGINT())
             if (minimum == MSSQL_INT_MIN) and (maximum == MSSQL_INT_MAX):
-                return cast(sa.types.TypeEngine, postgresql.INTEGER())
+                return t.cast(sa.types.TypeEngine, postgresql.INTEGER())
             if (minimum == MSSQL_SMALLINT_MIN) and (maximum == MSSQL_SMALLINT_MAX):
-                return cast(sa.types.TypeEngine, postgresql.SMALLINT())
+                return t.cast(sa.types.TypeEngine, postgresql.SMALLINT())
             if (minimum == MSSQL_TINYINT_MIN) and (maximum == MSSQL_TINYINT_MAX):
                 # This is a MSSQL only DataType of TINYINT
-                return cast(sa.types.TypeEngine, postgresql.SMALLINT())
+                return t.cast(sa.types.TypeEngine, postgresql.SMALLINT())
             precision = str(maximum).count("9")
-            return cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=0))
+            return t.cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=0))
 
         # JSON Numbers to Postgres
         if "number" in jsonschema_type.get("type"):
@@ -213,14 +249,14 @@ class PostgresConnector(SQLConnector):
             # There is something that is traucating and rounding this number
             # if (minimum == -922337203685477.5808) and (maximum == 922337203685477.5807):
             if (minimum == MSSQL_MONEY_MIN) and (maximum == MSSQL_MONEY_MAX):
-                return cast(sa.types.TypeEngine, postgresql.MONEY())
+                return t.cast(sa.types.TypeEngine, postgresql.MONEY())
             if (minimum == MSSQL_SMALLMONEY_MIN) and (maximum == MSSQL_SMALLMONEY_MAX):
                 # This is a MSSQL only DataType of SMALLMONEY
-                return cast(sa.types.TypeEngine, postgresql.MONEY())
+                return t.cast(sa.types.TypeEngine, postgresql.MONEY())
             if (minimum == MSSQL_FLOAT_MIN) and (maximum == MSSQL_FLOAT_MAX):
-                return cast(sa.types.TypeEngine, postgresql.FLOAT())
+                return t.cast(sa.types.TypeEngine, postgresql.FLOAT())
             if (minimum == MSSQL_REAL_MIN) and (maximum == MSSQL_REAL_MAX):
-                return cast(sa.types.TypeEngine, postgresql.REAL())
+                return t.cast(sa.types.TypeEngine, postgresql.REAL())
             # Python will start using scientific notition for float values.
             # A check for 'e+' in the string of the value is what I key on.
             # If it is no present we can count the number of '9' chars.
@@ -228,13 +264,13 @@ class PostgresConnector(SQLConnector):
             if "e+" not in str(maximum).lower():
                 precision = str(maximum).count('9')
                 scale = precision - str(maximum).rfind('.')
-                return cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
+                return t.cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
             precision_start = str(maximum).rfind('+')
             precision = int(str(maximum)[precision_start:])
             scale_start = str(maximum).find('.') + 1
             scale_end = str(maximum).lower().find('e')
             scale = scale_end - scale_start
-            return cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
+            return t.cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
 
         return SQLConnector.to_sql_type(jsonschema_type)
 
@@ -300,10 +336,11 @@ class PostgresSink(SQLSink):
 
     connector_class = PostgresConnector
 
-    _target_table: Table = None
+    _target_table: sa.Table = None
+    _insert_statement: postgresql.Insert = None
 
     @property
-    def target_table(self) -> Table:
+    def target_table(self) -> sa.Table:
         """Return the targeted table or `None` if not assigned yet.
 
         Returns:
@@ -349,6 +386,8 @@ class PostgresSink(SQLSink):
         # Get the Stream Properties Dictornary from the Schema
         properties: dict = self.schema.get("properties")
 
+        null_characters_removed: bool = False
+
         for key, value in record.items():
             if value is not None:
                 # Get the Item/Column property
@@ -358,12 +397,86 @@ class PostgresSink(SQLSink):
                 # the target to fail out
                 if isinstance(value, str) and "\x00" in value:
                     record.update({key: value.replace("\x00", "")})
-                    self.logger.info("Removed Null Character(s) From a Record")
+                    null_characters_removed = True
                 # Decode base64 binary fields in record
                 if property_schema.get("contentEncoding") == "base64":
                     record.update({key: b64decode(value)})
 
+        if null_characters_removed:
+            self.logger.info("Removed Null Character(s) From a Record")
+
         return record
+
+    def process_batch_line(self, line) -> dict:
+        """Process a batch file record.
+
+        This processing allows for datetimes and other types to be
+        handled the same as being read from the stdout.
+
+        Args:
+            line: The batch file line to be processed.
+        """
+        record = self.preprocess_record(deserialize_json(line),{})
+        self._parse_timestamps_in_record(
+            record=record,
+            schema=self.schema,
+            treatment=self.datetime_error_treatment,
+        )
+        return record
+
+    async def cleanup_batch_files(self, file_path: Path) -> None:
+        """ASYNC function to cleanup batch files after ingestion.
+
+        Args:
+            file_path: The Path object to the file.
+        """
+        file_path.unlink()
+
+    def process_batch_files(
+        self,
+        encoding: BaseBatchFileEncoding,
+        files: t.Sequence[str],
+    ) -> None:
+        """Process a batch file with the given batch context.
+
+        Args:
+            encoding: The batch file encoding.
+            files: The batch files to process.
+
+        Raises:
+            NotImplementedError: If the batch file encoding is not supported.
+        """
+        file: GzipFile | t.IO
+        storage: StorageTarget | None = None
+
+        for path in files:
+            file_path = Path(path.replace("file://",""))
+            head, tail = StorageTarget.split_url(path)
+
+
+            if self.batch_config:
+                storage = self.batch_config.storage
+            else:
+                storage = StorageTarget.from_url(head)
+
+            if encoding.format == BatchFileFormat.JSONL:
+                with storage.fs(create=False) as batch_fs, batch_fs.open(
+                    tail,
+                    mode="rb",
+                ) as file:
+                    context_file = (
+                        gzip_open(file) if encoding.compression == "gzip" else file
+                    )
+                    context = {
+                        "records": [self.process_batch_line(line) for line in context_file]  # type: ignore[attr-defined]
+                    }
+                    self.process_batch(context)
+            else:
+                msg = f"Unsupported batch encoding format: {encoding.format}"
+                raise NotImplementedError(msg)
+
+            # Delete Files Once injested.
+            asyncio.run(self.cleanup_batch_files(file_path=file_path))
 
     def set_target_table(self, full_table_name: str) -> None:
         """Populates the property _target_table."""
@@ -373,20 +486,38 @@ class PostgresSink(SQLSink):
 
         # You also need a blank MetaData instance
         # for the Table class instance
-        meta = MetaData()
+        meta = sa.MetaData()
 
         # This is the Table instance that will autoload
         # all the info about the table from the target server
-        table: Table = Table(table_name, meta, autoload_with=self.connector._engine, schema=schema_name)
+        table: sa.Table = sa.Table(table_name, meta, autoload_with=self.connector._engine, schema=schema_name)
 
         self._target_table = table
+
+    def set_insert_statement(self) -> None:
+        """Populated the property _insert_statement."""
+        insert_stmt = postgresql.insert(self.target_table)
+        insert_stmt_skip = insert_stmt.on_conflict_do_nothing(
+            constraint=self.target_table.primary_key
+        )
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            constraint=self.target_table.primary_key
+            ,set_=self.target_table.columns
+        )
+        if self.config["load_method"] == TargetLoadMethods.UPSERT:
+            if self.target_table.primary_key:
+                self._insert_statement = upsert_stmt
+            else:
+                self._insert_statement = insert_stmt
+        else:
+            self._insert_statement = insert_stmt
 
     def bulk_insert_records(
         self,
         full_table_name: str,
         schema: dict,
-        records: Iterable[dict[str, Any]],
-    ) -> Optional[int]:
+        records: t.Iterable[dict[str, t.Any]],
+    ) -> t.Optional[int]:
         """Bulk insert records to an existing destination table.
 
         The default implementation uses a generic SQLAlchemy bulk insert operation.
@@ -405,18 +536,19 @@ class PostgresSink(SQLSink):
         if self.target_table is None:
             self.set_target_table(full_table_name)
 
-        conformed_records = (
-            [self.conform_record(record) for record in records]
-            if isinstance(records, list)
-            else (self.conform_record(record) for record in records)
-        )
+        if self._insert_statement is None:
+            self.set_insert_statement()
+
+        conformed_records = [self.conform_record(record) for record in records]
 
         # This is a insert based off SQLA example
         # https://docs.sqlalchemy.org/en/20/dialects/mssql.html#insert-behavior
         rowcount: int = 0
         try:
             with self.connector._connect() as conn, conn.begin():  # noqa: SLF001
-                result:sa.CursorResult = conn.execute(self.target_table.insert(), conformed_records)
+                result:sa.CursorResult = conn.execute(
+                    self._insert_statement,
+                    conformed_records)
             rowcount = result.rowcount
         except exc.SQLAlchemyError as e:
             error = str(e.__dict__["orig"])
