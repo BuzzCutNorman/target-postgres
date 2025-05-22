@@ -1,9 +1,11 @@
-[tool.poetry]
+[project]
 name = "target-postgres"
 version = "0.1.0"
 description = "`target-postgres` is a Singer target for postgres, built with the Meltano Singer SDK."
+authors = [{ name = "Dan Norman" }]
+requires-python = ">=3.8"
 readme = "README.md"
-authors = ["Dan Norman"]
+license = "MIT"
 keywords = [
     "ELT",
     "postgres",
@@ -17,22 +19,28 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-license = "MIT"
+dependencies = [
+    "singer-sdk~=0.39.0",
+    "psycopg2>=2.9.9,<3",
+    "psycopg[binary]>=3.2.1,<4",
+    "msgspec>=0.18.6,<0.19",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.8"
-singer-sdk = { version="~=0.39.0" }
-fs-s3fs = { version = "^1.1.1", optional = true }
-psycopg2 = "^2.9.9"
-psycopg = {extras = ["binary"], version = "^3.2.1"}
-msgspec = "^0.18.6"
+[project.optional-dependencies]
+s3 = ["fs-s3fs>=1.1.1,<2"]
 
-[tool.poetry.dev-dependencies]
-pytest = ">=8"
-singer-sdk = { version="~=0.39.0", extras = ["testing"] }
+[project.scripts]
+target-postgres = "target_postgres.target:Targetpostgres.cli"
 
-[tool.poetry.extras]
-s3 = ["fs-s3fs"]
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "singer-sdk[testing]~=0.39.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.mypy]
 python_version = "3.12"
@@ -60,11 +68,3 @@ known-first-party = ["target_postgres"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
-
-[build-system]
-requires = ["poetry-core==1.9.0"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.scripts]
-# CLI declaration
-target-postgres = 'target_postgres.target:Targetpostgres.cli'
