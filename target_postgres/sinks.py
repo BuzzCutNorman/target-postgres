@@ -25,8 +25,6 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.schema import DropTable
 
-from .json import deserialize_json, serialize_json
-
 if t.TYPE_CHECKING:
     from sqlalchemy.engine import Engine
 
@@ -74,16 +72,6 @@ class PostgresConnector(SQLConnector):
     allow_overwrite: bool = True  # Whether overwrite load method is supported.
     allow_temp_tables: bool = True  # Whether temp tables are supported.
 
-    def __init__(
-            self,
-            config: dict | None = None,
-            sqlalchemy_url: str | None = None
-        ) -> None:
-        """Class Default Init."""
-        self.deserialize_json = deserialize_json
-        self.serialize_json = serialize_json
-
-        super().__init__(config, sqlalchemy_url)
 
     @contextmanager
     def _connect(self) -> t.Iterator[sa.engine.Connection]:
@@ -159,11 +147,11 @@ class PostgresConnector(SQLConnector):
         msg = f"json schema type: {jsonschema_type}"
         self.logger.info(msg)
         if self.config.get("hd_jsonschema_types", False):
-            return self.hd_to_sql_type(jsonschema_type)
-        return self.org_to_sql_type(jsonschema_type)
+            return self.hd_to_sql_type(jsonschema_type=jsonschema_type)
+        return self.org_to_sql_type(jsonschema_type=jsonschema_type)
 
-    @staticmethod
-    def org_to_sql_type(jsonschema_type: dict) -> sa.types.TypeEngine:
+
+    def org_to_sql_type(self,jsonschema_type: dict) -> sa.types.TypeEngine:
         """Return a JSON Schema representation of the provided type.
 
         By default will call `typing.to_sql_type()`.
@@ -182,10 +170,10 @@ class PostgresConnector(SQLConnector):
         if jsonschema_type.get("format") == "date-time":
             return t.cast(sa.types.TypeEngine, sa.types.TIMESTAMP())
 
-        return SQLConnector.to_sql_type(jsonschema_type)
+        return SQLConnector.to_sql_type(self=self,jsonschema_type=jsonschema_type)
 
-    @staticmethod
-    def hd_to_sql_type(jsonschema_type: dict) -> sa.types.TypeEngine:
+
+    def hd_to_sql_type(self,jsonschema_type: dict) -> sa.types.TypeEngine:
         """Return a JSON Schema representation of the provided type.
 
         By default will call `typing.to_sql_type()`.
@@ -272,7 +260,7 @@ class PostgresConnector(SQLConnector):
             scale = scale_end - scale_start
             return t.cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
 
-        return SQLConnector.to_sql_type(jsonschema_type)
+        return SQLConnector.to_sql_type(self=self,jsonschema_type=jsonschema_type)
 
     def create_empty_table(
         self,
@@ -407,22 +395,6 @@ class PostgresSink(SQLSink):
 
         return record
 
-    def process_batch_line(self, line) -> dict:
-        """Process a batch file record.
-
-        This processing allows for datetimes and other types to be
-        handled the same as being read from the stdout.
-
-        Args:
-            line: The batch file line to be processed.
-        """
-        record = self.preprocess_record(deserialize_json(line),{})
-        self._parse_timestamps_in_record(
-            record=record,
-            schema=self.schema,
-            treatment=self.datetime_error_treatment,
-        )
-        return record
 
     async def cleanup_batch_files(self, file_path: Path) -> None:
         """ASYNC function to cleanup batch files after ingestion.
