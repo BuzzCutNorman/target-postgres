@@ -27,7 +27,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-s3 = ["fs-s3fs>=1.1.1,<2"]
+s3 = [
+    "s3fs~=2025.5.0",
+]
 
 [project.scripts]
 target-postgres = "target_postgres.target:Targetpostgres.cli"
@@ -38,7 +40,7 @@ dev = [
 ]
 test = [
     "pytest>=8",
-    "singer-sdk[testing]~=0.46.4",
+    "singer-sdk[testing]",
 ]
 
 [tool.mypy]
