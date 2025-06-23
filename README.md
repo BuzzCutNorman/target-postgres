@@ -4,6 +4,8 @@
 
 Build with the [Meltano Target SDK](https://sdk.meltano.com).
 ### Whats New 🛳️🎉
+**2024-06-23 Upgraded to Meltano Singer-SDK 0.46.4:** Edger at Arch implemented an MsgSpecWriter class in the SDK.  I updated target-postgres to utilize the SDK's implementation of msgspec.  Thanks Edger 🙏. Also started using the binary version of psycopg2 to reduce the requirements for installation.
+
 **2024-08-20 msgspec and more:**  I have been working on getting a quicker JSON decoder in place for a while and thanks to Edger at Arch I am able too.  The library I switched to is [msgspec]( https://jcristharif.com/msgspec/). It is lightweight and fast.  Big Thank You 🙏 to Jim Crist-Harif for writing and maintaining `msgspec`. I also removed `pedulum` and am using phython datetime at the moment. 
 
 But wait there is more! I enabled the `upsert` and `overwrite` `load_methods`.  Upsert works only if a table has a primary key, heap tables will just be appended too.  I had to make all drop table calls be cascading in order for overwrite to work so consider yourself warned.  There be monsters 🧌 of ye own making using the overwrite method. 😁 

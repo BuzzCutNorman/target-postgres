@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import typing as t
+import urllib.parse
 from base64 import b64decode
 from contextlib import contextmanager
 from decimal import Decimal
@@ -25,11 +27,11 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.schema import DropTable
 
-from .json import deserialize_json, serialize_json
-
 if t.TYPE_CHECKING:
+    from singer_sdk.target_base import Target
     from sqlalchemy.engine import Engine
 
+_C = t.TypeVar("_C", bound=SQLConnector)
 
 MSSQL_BIGINT_MIN: int = -9223372036854775808
 MSSQL_BIGINT_MAX: int = 9223372036854775807
@@ -74,16 +76,6 @@ class PostgresConnector(SQLConnector):
     allow_overwrite: bool = True  # Whether overwrite load method is supported.
     allow_temp_tables: bool = True  # Whether temp tables are supported.
 
-    def __init__(
-            self,
-            config: dict | None = None,
-            sqlalchemy_url: str | None = None
-        ) -> None:
-        """Class Default Init."""
-        self.deserialize_json = deserialize_json
-        self.serialize_json = serialize_json
-
-        super().__init__(config, sqlalchemy_url)
 
     @contextmanager
     def _connect(self) -> t.Iterator[sa.engine.Connection]:
@@ -159,11 +151,11 @@ class PostgresConnector(SQLConnector):
         msg = f"json schema type: {jsonschema_type}"
         self.logger.info(msg)
         if self.config.get("hd_jsonschema_types", False):
-            return self.hd_to_sql_type(jsonschema_type)
-        return self.org_to_sql_type(jsonschema_type)
+            return self.hd_to_sql_type(jsonschema_type=jsonschema_type)
+        return self.org_to_sql_type(jsonschema_type=jsonschema_type)
 
-    @staticmethod
-    def org_to_sql_type(jsonschema_type: dict) -> sa.types.TypeEngine:
+
+    def org_to_sql_type(self,jsonschema_type: dict) -> sa.types.TypeEngine:
         """Return a JSON Schema representation of the provided type.
 
         By default will call `typing.to_sql_type()`.
@@ -182,10 +174,10 @@ class PostgresConnector(SQLConnector):
         if jsonschema_type.get("format") == "date-time":
             return t.cast(sa.types.TypeEngine, sa.types.TIMESTAMP())
 
-        return SQLConnector.to_sql_type(jsonschema_type)
+        return SQLConnector.to_sql_type(self=self,jsonschema_type=jsonschema_type)
 
-    @staticmethod
-    def hd_to_sql_type(jsonschema_type: dict) -> sa.types.TypeEngine:
+
+    def hd_to_sql_type(self,jsonschema_type: dict) -> sa.types.TypeEngine:
         """Return a JSON Schema representation of the provided type.
 
         By default will call `typing.to_sql_type()`.
@@ -272,7 +264,7 @@ class PostgresConnector(SQLConnector):
             scale = scale_end - scale_start
             return t.cast(sa.types.TypeEngine, postgresql.NUMERIC(precision=precision, scale=scale))
 
-        return SQLConnector.to_sql_type(jsonschema_type)
+        return SQLConnector.to_sql_type(self=self,jsonschema_type=jsonschema_type)
 
     def create_empty_table(
         self,
@@ -338,6 +330,27 @@ class PostgresSink(SQLSink):
 
     _target_table: sa.Table = None
     _insert_statement: postgresql.Insert = None
+
+    def __init__(
+        self,
+        target: Target,
+        stream_name: str,
+        schema: dict,
+        key_properties: t.Sequence[str] | None,
+        connector: _C | None = None,
+    ) -> None:
+        """Initialize SQL Sink.
+
+        Args:
+            target: The target object.
+            stream_name: The source tap's stream name.
+            schema: The JSON Schema definition.
+            key_properties: The primary key columns.
+            connector: Optional connector to reuse.
+        """
+        self.message_reader_class = target.message_reader_class()
+
+        super().__init__(target, stream_name, schema, key_properties, connector)
 
     @property
     def target_table(self) -> sa.Table:
@@ -407,30 +420,17 @@ class PostgresSink(SQLSink):
 
         return record
 
-    def process_batch_line(self, line) -> dict:
-        """Process a batch file record.
 
-        This processing allows for datetimes and other types to be
-        handled the same as being read from the stdout.
-
-        Args:
-            line: The batch file line to be processed.
-        """
-        record = self.preprocess_record(deserialize_json(line),{})
-        self._parse_timestamps_in_record(
-            record=record,
-            schema=self.schema,
-            treatment=self.datetime_error_treatment,
-        )
-        return record
-
-    async def cleanup_batch_files(self, file_path: Path) -> None:
+    async def cleanup_batch_files(self, head: str, tail: str) -> None:
         """ASYNC function to cleanup batch files after ingestion.
 
         Args:
             file_path: The Path object to the file.
         """
-        file_path.unlink()
+        head_path  = urllib.parse.urlparse(head).path
+        if os.name == "nt" and head_path.startswith("/"):
+           head_path = head_path[1:]
+        Path(head_path,tail).unlink()
 
     def process_batch_files(
         self,
@@ -447,36 +447,31 @@ class PostgresSink(SQLSink):
             NotImplementedError: If the batch file encoding is not supported.
         """
         file: GzipFile | t.IO
-        storage: StorageTarget | None = None
+        storage = self.batch_config.storage if self.batch_config else None
 
         for path in files:
-            file_path = Path(path.replace("file://",""))
             head, tail = StorageTarget.split_url(path)
-
-
-            if self.batch_config:
-                storage = self.batch_config.storage
-            else:
-                storage = StorageTarget.from_url(head)
+            file_storage = storage or StorageTarget.from_url(head)
 
             if encoding.format == BatchFileFormat.JSONL:
-                with storage.fs(create=False) as batch_fs, batch_fs.open(
-                    tail,
-                    mode="rb",
-                ) as file:
-                    context_file = (
-                        gzip_open(file) if encoding.compression == "gzip" else file
-                    )
-                    context = {
-                        "records": [self.process_batch_line(line) for line in context_file]  # type: ignore[attr-defined]
-                    }
+                with file_storage.open(tail, mode="rb") as file:
+                    if encoding.compression == "gzip":
+                        with gzip_open(file) as context_file:
+                            context = {
+                                "records": [
+                                    self.message_reader_class.deserialize_json(line) for line in context_file
+                                ]
+                            }
+                    else:
+                        context = {"records": [self.message_reader_class.deserialize_json(line) for line in file]}
+                    self.record_counter_metric.increment(len(context["records"]))
                     self.process_batch(context)
             else:
                 msg = f"Unsupported batch encoding format: {encoding.format}"
                 raise NotImplementedError(msg)
 
             # Delete Files Once injested.
-            asyncio.run(self.cleanup_batch_files(file_path=file_path))
+            asyncio.run(self.cleanup_batch_files(head,tail))
 
     def set_target_table(self, full_table_name: str) -> None:
         """Populates the property _target_table."""
